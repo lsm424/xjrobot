@@ -1,0 +1,8 @@
+*.log
+*.wav
+*.pyc
+*.db
+test.py
+a.py
+*/model_dir
+.vscode

@@ -1,0 +1,41 @@
+from services.brain_service import RobotBrainService
+from services.robot_tts import RobotTTS
+from common import logger
+from common.config import cfg
+from services.robot_state import RobotState
+import os
+
+class Robot:
+
+    def __init__(self):
+        stt_type = cfg.get('stt', 'type')
+        if stt_type == 'self_realtime_stt':
+            from services.realtime_stt.self_realtime_stt import SelfRealtimeSTT
+            self.rl_stt = SelfRealtimeSTT()
+        else:
+            from services.realtime_stt.fast_realtime_stt import FastRealtimeSTT
+            self.rl_stt = FastRealtimeSTT()
+
+        self.robot_brain = RobotBrainService(
+            llm_api=cfg.get('llm', 'ollama_api_url'), 
+            model_name=cfg.get('llm', 'llm_mode')
+        )
+        self.tts = RobotTTS(cfg.get('tts', 'paddle_server_ip'), 
+            cfg.getint('tts', 'paddle_server_port'))
+        
+
+    def run(self):
+        while RobotState.running:
+            self.tts.wait_tts_finish()
+            user_input = self.rl_stt.start_recording()
+            logger.info(f'user: {user_input}')
+            if not user_input:
+                logger.info('user_input为None，继续下一轮循环')
+                continue
+            answer = self.robot_brain.ask(user_input)
+            logger.info(f'robot: {answer}')
+            if answer is None:
+                logger.info('answer为None，继续下一轮循环')
+                continue            
+            logger.info(f'准备调用tts.input_text: {answer}')
+            self.tts.input_text(answer)
