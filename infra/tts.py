@@ -7,6 +7,7 @@ import torch
 import os
 from common import logger
 from paddlespeech.server.bin.paddlespeech_client import TTSOnlineClientExecutor
+import re
 
 class PaddleTTS:
     def __init__(self, server_ip, server_port):
@@ -16,14 +17,25 @@ class PaddleTTS:
         self.paddle_server_port = server_port
 
     def tts(self, text, speak=False, out_file="./assets/synth_audio_websocket.wav"):
-        self.client_executor(
-            input=text,
-            server_ip=self.paddle_server_ip,
-            port=self.paddle_server_port,
-            protocol="websocket",  # 指定使用 websocket 协议
-            output=out_file,
-            play=speak
-        )
+        text = re.sub(r"[\"'!]", "", text)
+        try:
+            self.client_executor(
+                input=text,
+                server_ip=self.paddle_server_ip,
+                port=self.paddle_server_port,
+                protocol="websocket",  # 指定使用 websocket 协议
+                output=out_file,
+                play=speak  # Disable internal playback to avoid thread issues
+            )
+        except Exception as e:
+            logger.error(f"Error during PaddleTTS: {e}，input text: {text}")
+        # if speak:
+        #     try:
+        #         data, samplerate = sf.read(out_file, dtype='float32')
+        #         sd.play(data, samplerate)
+        #         sd.wait()  # Wait for playback to finish
+        #     except Exception as e:
+        #         logger.error(f"Error during audio playback: {e}")
 
     
     def self_text_to_speech(self, text, prompt_path=None, prompt_text=None, mode="zero_shot", play=False):

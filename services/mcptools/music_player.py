@@ -87,7 +87,7 @@ class MusicPlayerTool(ToolBase):
                 return "错误：未能从API获取到有效的播放链接"
 
         except Exception as e:
-            logger.error(f"获取播放链接时发生错误: {e}", exc_info=True)
+            logger.error(f"获取播放链接时发生错误: {e}, song_mid: {song_mid}", exc_info=True)
             return f"错误：获取播放链接时发生网络或解析错误: {e}"
 
     @tool(description="用户只提及歌手名字的情况下，根据歌手名搜索歌手ID，为get_songs_by_singer做准备，完成之后一定要调用get_songs_by_singer")

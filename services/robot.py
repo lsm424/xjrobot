@@ -27,13 +27,14 @@ class Robot:
     def run(self):
         while RobotState.running:
             self.tts.wait_tts_finish()
+            logger.info('请说话')
             user_input = self.rl_stt.start_recording()
-            logger.info(f'user: {user_input}')
+            logger.info(f'用户说: {user_input}')
             if not user_input:
                 logger.info('user_input为None，继续下一轮循环')
                 continue
             answer = self.robot_brain.ask(user_input)
-            logger.info(f'robot: {answer}')
+            logger.info(f'机器人说: {answer}')
             if answer is None:
                 logger.info('answer为None，继续下一轮循环')
                 continue            
