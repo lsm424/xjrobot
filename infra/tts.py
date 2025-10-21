@@ -18,6 +18,7 @@ class PaddleTTS:
 
     def tts(self, text, speak=False, out_file="./assets/synth_audio_websocket.wav"):
         text = re.sub(r"[\"'!]", "", text)
+        logger.info(f'准备调用tts: {text}')
         try:
             self.client_executor(
                 input=text,

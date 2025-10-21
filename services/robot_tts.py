@@ -22,7 +22,6 @@ class RobotTTS(FinishEvent):
             answer = self.text_queue.get()
             with RobotState.stt_tts_sema:
                 with self.start_event():
-                    logger.info(f'准备调用tts.tts: {answer}')
                     self.tts.tts(answer, speak=True)
 
     def wait_tts_finish(self):

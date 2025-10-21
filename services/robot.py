@@ -38,5 +38,4 @@ class Robot:
             if answer is None:
                 logger.info('answer为None，继续下一轮循环')
                 continue            
-            logger.info(f'准备调用tts.input_text: {answer}')
             self.tts.input_text(answer)

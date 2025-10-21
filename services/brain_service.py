@@ -22,7 +22,6 @@ class RobotBrainService:
         self.agent = create_react_agent(llm, tools)
         self._sp = self.__system_prompt()
         
-
     def __system_prompt(self) -> str:
         usages = '\n'.join([f'【{x.name}使用流程】\n{x.usage()}' for x in self.tools if x.usage()])
         sp=f'''

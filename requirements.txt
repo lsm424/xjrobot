@@ -1,9 +1,8 @@
 asposestorage==1.0.2
-colorlog==6.9.0
-langchain==1.0.0
+langchain==1.0.1
 langchain_core==1.0.0
 langchain_ollama==1.0.0
-langgraph==1.0.0
+langgraph==1.0.1
 loguru==0.7.3
 mcp==1.18.0
 numpy==2.3.4
@@ -17,3 +16,4 @@ sounddevice==0.5.2
 soundfile==0.13.1
 SQLAlchemy==1.4.31
 torch==2.8.0
+paddlepaddle==3.2.0
