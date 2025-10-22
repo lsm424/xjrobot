@@ -2,6 +2,7 @@ import logging
 import requests
 import webbrowser
 import urllib.parse
+import re
 from langchain.tools import tool
 from common import logger
 from .base import ToolBase
@@ -17,6 +18,7 @@ class MusicPlayerTool(ToolBase):
 2.用户输入：‘我想听xxx的歌’或者‘我想听xxx’或者‘换一个xxx的歌’（我想听几个字可以省略，xxx为人名，工具使用链路为search_singer_id→get_songs_by_singer获取歌曲列表给用户选择，进入下一轮对话，下一轮对话有歌曲名回到步骤1）
 3.用户输入：‘xxx有些什么歌？’（xxx为人名，回到步骤2）
 4.用户输入：‘xxx的yyy‘或者’xxx yyy‘（我想听几个字可以省略，xxx为人名，yyy为歌曲名，工具使用链路为search_song_id→get_song_url）
+5.用户输入：‘我想听歌词xxx的歌’或者‘xxx是什么歌’（xxx为歌词内容，工具使用链路为lyrics_to_song_name→search_song_id→get_song_url）
 根据工具调用返回的结果综合回复，比如工具返回歌曲列表，引导用户进行选择；如果确认工具返回播放链接调用成功，回复用户播放xxx成功，否则需要提醒用户没能正确播放'''
 
 
@@ -90,6 +92,136 @@ class MusicPlayerTool(ToolBase):
         except Exception as e:
             logger.error(f"获取播放链接时发生错误: {e}, song_mid: {song_mid}", exc_info=True)
             return f"错误：获取播放链接时发生网络或解析错误: {e}"
+
+    # 百度千帆 AI 搜索 API 配置
+    API_KEY = "bce-v3/ALTAK-rTSowOKEosFuKCKBvu6Rq/8bcca13ea79cc98570ca9ea40c5e8e70a4aacc87"
+    BAIDU_API_URL = "https://qianfan.baidubce.com/v2/ai_search/web_search"
+
+    def call_baidu_ai_search(self, search_query: str):
+        """
+        调用百度千帆 AI 搜索 API。
+        :param search_query: 搜索查询词 (例如: "窗外的麻雀 歌名")
+        :return: (dict) 成功时返回 API 响应的 JSON 字典, (str) 失败时返回错误信息
+        """
+        headers = {
+            'Authorization': f'Bearer {self.API_KEY}',
+            'Content-Type': 'application/json'
+        }
+        
+        data = {
+          "messages": [
+            {
+              "content": search_query,
+              "role": "user"
+            }
+          ],
+          "search_source": "baidu_search_v2",
+          "resource_type_filter": [{"type": "web", "top_k": 5}]
+        }
+        
+        logger.info(f"Sending to Baidu API with content: {search_query}")
+        
+        try:
+            response = requests.post(self.BAIDU_API_URL, headers=headers, json=data)
+            
+            if response.status_code == 200:
+                response_json = response.json()
+                return response_json, None 
+                
+            else: # HTTP 错误
+                if response.status_code in [401, 403, 429]:
+                     logger.warning(f"Received {response.status_code}, triggering Error_search_engine_SV")
+                     return None, "Error_search_engine_SV"
+                
+                logger.error(f"HTTP Error {response.status_code}: {response.text}")
+                return None, f"Error: HTTP {response.status_code} - {response.text}"
+                
+        except requests.exceptions.RequestException as e:
+            logger.critical(f"Network Error during Baidu API call: {e}")
+            return None, f"Network Error: {e}"
+    
+    def parse_song_from_title(self, title: str) -> str:
+        """
+        辅助函数：尝试从搜索结果标题中解析歌名。
+        例如："周杰伦 - 七里香 (Live)" -> "七里香"
+        """
+        if not title:
+            return ""
+        
+        song_name = title
+        if ' - ' in title:
+            song_name = title.split(' - ')[-1] # 取 "七里香 (Live)"
+        
+        # 移除 (Live), (DJ版) 等
+        song_name = song_name.split(' (')[0] 
+        song_name = song_name.split(' [')[0]
+        
+        return song_name.strip("《》")
+    
+    @tool(description="用户输入歌词内容，想要查找对应的歌曲名时使用此工具。输入歌词内容，返回匹配到的歌曲名")
+    def lyrics_to_song_name(lyrics: str = Field(..., description="歌词内容")) -> str:
+        """
+        根据歌词内容搜索歌曲名称
+        """
+        logger.info(f"根据歌词搜索歌曲名: '{lyrics}'")
+        
+        try:
+            # 构建搜索关键词
+            search_keyword = f"{lyrics} 歌名"
+            
+            # 调用百度AI搜索
+            music_tool = MusicPlayerTool()
+            response_json, error_msg = music_tool.call_baidu_ai_search(search_keyword)
+            
+            if error_msg:
+                logger.warning(f"百度搜索失败。返回错误: {error_msg}")
+                return error_msg
+            
+            final_song = None
+            result_text = response_json.get("result") # 获取 AI 总结
+    
+            # 1. 优先使用 'result' (AI 总结)
+            if result_text:
+                logger.info(f"使用AI生成的'result'字段: {result_text}")
+                final_song = result_text
+    
+            # 2. 'result' 失败，降级到 'references' (原始搜索结果)
+            else:
+                logger.warning("'result'字段缺失或为空。回退到解析'references'。")
+                references = response_json.get("references")
+                if not references:
+                    logger.error("'result'和'references'都缺失。")
+                    return "错误: 百度API未返回结果或引用。"
+                
+                # 只看第一个搜索结果
+                ref_one = references[0]
+                content = ref_one.get('content', '') + ref_one.get('title', '')
+                
+                # 优先在第一个结果中查找 "《歌名》"
+                match = re.search(r"《([^》]+)》", content) 
+                if match:
+                    song_name = match.group(1).strip()
+                    if "专辑" not in content and len(song_name) < 20: 
+                        final_song = song_name
+                        logger.info(f"回退方案: 在第一个引用中找到'《{final_song}》'")
+                
+                # 如果第一个结果中没有 《》，则解析第一个结果的标题
+                if not final_song:
+                    first_title = ref_one.get('title', '')
+                    logger.info(f"回退方案: 在第一个引用中未找到'《...》'。解析标题: '{first_title}'")
+                    final_song = music_tool.parse_song_from_title(first_title)
+        
+            if not final_song:
+                logger.error(f"无法从AI结果或回退方案中解析歌曲名。响应: {response_json}")
+                return "错误: 无法解析歌曲名"
+    
+            final_result = final_song.strip("《》\"'。， ")
+            logger.info(f"成功匹配歌曲。返回: {final_result}")
+            return f"根据歌词匹配到的歌曲是: {final_result}"
+    
+        except Exception as e:
+            logger.critical(f"lyrics_to_song_name工具中未处理的异常: {e}", exc_info=True)
+            return f"服务器错误: {str(e)}"
 
     @tool(description="用户只提及歌手名字的情况下，根据歌手名搜索歌手ID，为get_songs_by_singer做准备，完成之后一定要调用get_songs_by_singer")
     def search_singer_id(singer_name: str = Field(..., description="歌手名称")) -> str:

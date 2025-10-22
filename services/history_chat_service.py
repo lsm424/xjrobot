@@ -19,7 +19,7 @@ class HistoryChatService:
 
     def get_history(self):
         with get_db_context_session() as cursor:
-            cursor.execute('''select * from history_chat where robot_answer != "" order by id desc limit ?''', (self.round_cnt, ))
+            cursor.execute('''select * from history_chat where robot_answer != "" order by id limit ?''', (self.round_cnt, ))
             rows = cursor.fetchall()
         return [dict(zip([desc[0] for desc in cursor.description], row)) for row in rows]
 
