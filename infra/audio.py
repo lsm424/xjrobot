@@ -17,7 +17,6 @@ class AudioTool:
     
     def play_wav(self, wav_path):
         # 初始化pygame的mixer模块
-        pygame.mixer.init()
         # 加载WAV文件
         logger.info(f'broadcasting path_name: {wav_path}')
         pygame.mixer.music.load(wav_path)

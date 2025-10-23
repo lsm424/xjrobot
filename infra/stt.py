@@ -11,12 +11,13 @@ def self_speech_to_text(wav_path):
     if isinstance(wav_path, io.BytesIO):
         wav_path.seek(0)
         files = {"audio": wav_path}
+        response = requests.post(url, files=files)
     elif isinstance(wav_path, str):
         with open(wav_path, 'rb') as f:
             files = {"audio": f}
+            response = requests.post(url, files=files)
     else:
         raise ValueError("wav_path must be io.BytesIO or str")
-    response = requests.post(url, files=files)
         # logger.info(response)
     return response.json()
 
