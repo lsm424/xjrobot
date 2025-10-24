@@ -119,28 +119,16 @@ class NewsSearchTool(ToolBase):
                     if abstract_element:
                         abstract = abstract_element.get_text(strip=True)[:200]  # 限制摘要长度
                     
-                    # 获取来源 - 尝试多种方式
-                    source = ''
                     # 方式1: 查找cite标签
                     source_element = container.find('cite')
                     # 方式2: 查找特定class的span标签
                     if not source_element:
                         source_element = container.find('span', class_=re.compile(r'source|site', re.I))
-                    # 方式3: 从链接中提取域名
-                    if not source_element and link.startswith('http'):
-                        from urllib.parse import urlparse
-                        parsed_url = urlparse(link)
-                        source = parsed_url.netloc
-                    
-                    if source_element:
-                        source = source_element.get_text(strip=True)
-                    
                     # 构建新闻条目
                     news_item = {
                         'id': count + 1,
-                        'title': f"{source} {title}" if source else title,
-                        'abstract': abstract,
-                        'link': link
+                        'title': f"{title}",
+                        'abstract': abstract
                     }
                     
                     news_list.append(news_item)
@@ -150,32 +138,12 @@ class NewsSearchTool(ToolBase):
                     logger.error(f"解析单个新闻项时出错：{e}")
                     continue
             
-            # 记录总耗时结束
-            total_end_time = time.time()
-            total_time = int((total_end_time - total_start_time) * 1000)  # 转换为毫秒
-            
-            # 构建返回结果
-            result = {
-                'success': True,
-                'data': {
-                    'query': keyword,
-                    'newsCount': len(news_list),
-                    'newsList': news_list,
-                    'performance': {
-                        'searchTime': search_time,
-                        'totalTime': total_time
-                    }
-                },
-                'timestamp': datetime.utcnow().isoformat(timespec='milliseconds') + 'Z'
-            }
-            
             # 格式化返回结果，便于用户阅读
             formatted_news = []
             for item in news_list:
                 formatted_news.append(f"标题：{item['title']}")
                 if item['abstract']:
                     formatted_news.append(f"摘要：{item['abstract']}")
-                formatted_news.append(f"链接：{item['link']}")
                 formatted_news.append("---")
             
             if formatted_news:

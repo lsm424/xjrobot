@@ -4,7 +4,7 @@ from common import logger
 from common.config import cfg
 from services.robot_state import RobotState
 import os
-
+from services.robot_state import RobotState
 class Robot:
 
     def __init__(self):
@@ -22,6 +22,9 @@ class Robot:
         )
         self.tts = RobotTTS(cfg.get('tts', 'paddle_server_ip'), 
             cfg.getint('tts', 'paddle_server_port'))
+        # 将TTS客户端实例保存到全局状态中，供预回复工具使用
+        
+        RobotState.tts_client = self.tts
         
 
     def run(self):
@@ -35,7 +38,8 @@ class Robot:
                 continue
             answer = self.robot_brain.ask(user_input)
             logger.info(f'机器人说: {answer}')
-            if answer is None:
+            if not answer.strip():
                 logger.info('answer为None，继续下一轮循环')
+                self.tts.input_text('刚刚网络出了一些问题，请您重新问一次')
                 continue            
             self.tts.input_text(answer)
