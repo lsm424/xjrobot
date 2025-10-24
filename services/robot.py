@@ -38,8 +38,10 @@ class Robot:
                 continue
             answer = self.robot_brain.ask(user_input)
             logger.info(f'机器人说: {answer}')
-            if not answer.strip():
-                logger.info('answer为None，继续下一轮循环')
-                self.tts.input_text('刚刚网络出了一些问题，请您重新问一次')
-                continue            
-            self.tts.input_text(answer)
+            if not answer:
+                self.tts.input_text('刚刚网络出了一些问题，请您重新问一次') 
+                continue    
+            elif answer.strip() != '':
+                self.tts.input_text(answer)
+            else:
+                self.tts.input_text('刚刚网络出了一些问题，请您重新问一次') 

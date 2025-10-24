@@ -174,10 +174,7 @@ class WeatherTool(ToolBase):
             for date, weather, high, low in temps_list:
                 weather_report += f"{date}: {weather}，气温 {low}~{high}\n"
             
-            # 提示语
-            weather_report += "\n（如需某一天的具体天气，请告诉我日期）"
-            
-            return weather_report
+            return f"总结概括一下后面的天气信息\n{weather_report}"
             
         except Exception as e:
             logger.error(f"获取天气信息时发生错误: {e}", exc_info=True)

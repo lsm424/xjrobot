@@ -44,7 +44,9 @@ class RobotBrainService:
 - 每次都要考虑上下文之间的关系，不能忽略任何信息；
 - 同样的事情每次都要调用工具，绝对不能直接返回结果；
 - 如果工具出现报错，请你回复用户并说明问题，不要直接返回错误信息，并让用户重新尝试询问
+- 按照工具的返回要求去做；
 【回答规范】
+- 如果遇到工具的返回结果为总结后面的内容或者一字不差的返回后面的内容，请按照工具的说明去回复；
 - 尽可能将答案用中文回复；
 - 回复请你替换掉所有特殊字符，只能包含中文、数字和空格
 - 回复字数不能超过100字
@@ -94,9 +96,11 @@ class RobotBrainService:
             agent_response = LOOP.run_until_complete(self.agent.ainvoke({"messages": message}))
             steps, final_answer = self.__extract_steps_and_final(agent_response)
             logger.info(f'steps: {steps}')
-            if '</think>' in final_answer:
-                final_answer = final_answer.split('</think>')[-1].strip()
-            history_chat.save_chat(question, final_answer)            
+            logger.info(f'final_answer before: {final_answer}')
+            if 'think>' in final_answer:
+                final_answer = final_answer.split('think>')[-1].strip()
+            history_chat.save_chat(question, final_answer)   
+            logger.info(f'final_answer after: {final_answer}')         
             return final_answer
         except Exception as e:
             logger.error(f'ask error: {e}')
