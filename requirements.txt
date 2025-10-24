@@ -17,4 +17,5 @@ soundfile==0.13.1
 SQLAlchemy==1.4.31
 torch==2.8.0
 paddlepaddle==3.2.0
-bs4
+beautifulsoup4
+aistudio-sdk==0.2.6
