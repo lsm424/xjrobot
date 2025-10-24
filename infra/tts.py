@@ -7,7 +7,12 @@ import torch
 import os
 from common import logger
 from paddlespeech.server.bin.paddlespeech_client import TTSOnlineClientExecutor
+import sys
 import re
+
+# 引入TTSOnlineClientExecutor后日志打印失效，重新挂载日志处理器
+logger.remove()
+logger.add(sink=sys.stderr, level="DEBUG")
 
 class PaddleTTS:
     def __init__(self, server_ip, server_port):
