@@ -25,8 +25,10 @@ class RobotTTS(FinishEvent):
                     self.tts.tts(answer, speak=True)
 
     def wait_tts_finish(self):
+        if RobotState.is_playing_music:
+            return
         while not self.text_queue.empty():
-            time.sleep(0.2)
+            time.sleep(0.1)
         self.wait()
 
     def input_text(self, text):

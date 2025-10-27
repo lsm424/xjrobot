@@ -8,9 +8,204 @@ from common import logger
 from .base import ToolBase
 from typing import Literal
 from pydantic import Field
+import subprocess
+import threading
+import queue
+import time
+from services.robot_state import RobotState
 
+class FlacStreamPlayer:
+    """
+    在线解析 FLAC 链接，边下边播
+    使用 ffmpeg 解码并播放
+    """
+    def __init__(self, buffer_size: int = 1024 * 64):
+        self.buffer_size = buffer_size
+        self.download_queue = queue.Queue(maxsize=200)  # 限制缓存大小
+        self.stop_event = threading.Event()
+        self.temp_file = None
+        self.ffmpeg_proc = None
+
+    def _download_worker(self):
+        """后台下载线程：持续下载 FLAC 数据并写入队列"""
+        try:
+            with requests.get(self.url, stream=True, timeout=10) as resp:
+                resp.raise_for_status()
+                for chunk in resp.iter_content(chunk_size=self.buffer_size):
+                    if self.stop_event.is_set():
+                        break
+                    if chunk:
+                        self.download_queue.put(chunk)
+        except Exception as e:
+            logger.error(f"下载出错: {e}")
+        finally:
+            # 发送结束标记
+            self.download_queue.put(None)
+
+    def _play_worker(self):
+        """播放线程：从队列读取数据并直接喂给 ffplay 实现真正的边下边播"""
+        ffmpeg_proc = None  # 使用局部变量存储进程引用
+        try:
+            # 启动 ffplay 子进程，直接从 stdin 读取 FLAC 数据流
+            cmd = ['ffplay', '-nodisp', '-autoexit', '-i', '-']
+            ffmpeg_proc = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL
+            )
+            
+            # 更新实例变量
+            self.ffmpeg_proc = ffmpeg_proc
+
+            # 直接将下载的数据块写入 ffplay 的 stdin，实现边下边播
+            while not self.stop_event.is_set():
+                try:
+                    chunk = self.download_queue.get(timeout=1)
+                    if chunk is None:  # 下载结束
+                        break
+                    if ffmpeg_proc.stdin and not self.stop_event.is_set():
+                        try:
+                            ffmpeg_proc.stdin.write(chunk)
+                            ffmpeg_proc.stdin.flush()  # 确保数据立即发送到 ffplay
+                        except BrokenPipeError:
+                            logger.warning("管道已关闭，停止写入数据")
+                            break
+                    # print(f"已播放数据块大小: {len(chunk)}")
+                except queue.Empty:
+                    continue
+                except Exception as e:
+                    if not self.stop_event.is_set():
+                        logger.error(f"播放数据块时出错: {e}")
+            
+            # 安全关闭 stdin，通知 ffplay 输入已结束
+            try:
+                if ffmpeg_proc.stdin:
+                    ffmpeg_proc.stdin.close()
+            except:
+                pass
+
+            # 等待 ffmpeg 结束
+            try:
+                if ffmpeg_proc:
+                    ffmpeg_proc.wait(timeout=2)  # 添加超时避免永久阻塞
+            except subprocess.TimeoutExpired:
+                logger.warning("ffmpeg进程等待超时，强制终止")
+                try:
+                    ffmpeg_proc.terminate()
+                except:
+                    pass
+        except Exception as e:
+            logger.error(f"播放出错: {e}")
+        finally:
+            # 确保进程引用被清除
+            self.ffmpeg_proc = None
+            # 清空队列，避免下次播放时使用旧数据
+            try:
+                while not self.download_queue.empty():
+                    self.download_queue.get_nowait()
+            except:
+                pass
+
+    def play(self, flac_url: str):
+        """开始边下边播（非阻塞模式）"""
+        logger.info("开始边下边播 FLAC...")
+        # 首先停止当前播放（如果有）
+        if RobotState.is_playing_music:
+            logger.info("检测到正在播放音乐，先停止当前播放")
+            self.stop()
+        
+        # 完全重置所有状态
+        self.url = flac_url
+        self.stop_event.clear()  # 重置停止事件
+        # 清空队列，确保没有旧数据
+        try:
+            while not self.download_queue.empty():
+                self.download_queue.get_nowait()
+        except:
+            pass
+        
+        # 设置正在播放音乐的标志位
+        RobotState.is_playing_music = True
+        
+        # 启动下载和播放线程
+        dl_thread = threading.Thread(target=self._download_worker, daemon=True)
+        play_thread = threading.Thread(target=self._play_worker, daemon=True)
+        
+        dl_thread.start()
+        play_thread.start()
+        
+        # 创建一个监控线程来处理播放完成后的清理工作
+        monitor_thread = threading.Thread(target=self._monitor_playback, 
+                                        args=(dl_thread, play_thread), 
+                                        daemon=True)
+        monitor_thread.start()
+        
+        # 立即返回，不阻塞主线程
+        logger.info("音乐开始播放，主线程继续执行其他任务")
+        return
+        
+    def _monitor_playback(self, dl_thread, play_thread):
+        """监控播放过程并在完成后清理资源"""
+        try:
+            # 等待下载和播放线程结束
+            while not self.stop_event.is_set():
+                if not dl_thread.is_alive() and self.download_queue.empty():
+                    break
+                time.sleep(0.5)
+        except Exception as e:
+            logger.error(f"监控播放过程中出错: {e}")
+        finally:
+            # 确保资源被正确清理
+            self.stop()
+            try:
+                dl_thread.join(timeout=2)
+                play_thread.join(timeout=2)
+            except:
+                pass
+            logger.info("播放结束，资源已清理")
+    
+    def stop(self):
+        """停止播放和下载"""
+        logger.info("停止播放音乐...")
+        # 设置停止事件
+        self.stop_event.set()
+        
+        # 安全终止ffmpeg进程
+        if self.ffmpeg_proc:
+            try:
+                if self.ffmpeg_proc.poll() is None:
+                    self.ffmpeg_proc.terminate()
+                    # 添加超时，避免永久阻塞
+                    try:
+                        self.ffmpeg_proc.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        logger.warning("ffmpeg进程终止超时")
+            except Exception as e:
+                logger.error(f"终止ffmpeg进程时出错: {e}")
+            finally:
+                # 确保清除进程引用
+                self.ffmpeg_proc = None
+        
+        # 清空队列，避免旧数据影响下次播放
+        try:
+            while not self.download_queue.empty():
+                try:
+                    self.download_queue.get_nowait()
+                except queue.Empty:
+                    break
+        except Exception as e:
+            logger.error(f"清空队列时出错: {e}")
+        
+        # 清除正在播放音乐的标志位
+        RobotState.is_playing_music = False
+        logger.info("音乐播放已停止，资源已清理")
+
+
+player = FlacStreamPlayer()
 class MusicPlayerTool(ToolBase):
     def __init__(self):
+        
         super().__init__(name='音乐播放器')
 
     def usage(self) -> Literal[str|None]:
@@ -78,13 +273,13 @@ class MusicPlayerTool(ToolBase):
                 
                 # 在浏览器中打开链接进行播放
                 try:
-                    webbrowser.open(song_url)
-                    success_message = f"操作成功，已尝试在浏览器中播放 '{song_name}'。"
+                    player.play(song_url)
+                    success_message = f"操作成功，正在播放 '{song_name}'。"
                     logger.info(success_message)
                     return f"歌曲 '{song_name}' 的播放链接: {song_url}\n{success_message}"
                 except Exception as e:
-                    logger.error(f"无法打开浏览器: {e}", exc_info=True)
-                    return f"歌曲 '{song_name}' 的播放链接: {song_url}\n错误：无法打开浏览器进行播放: {e}"
+                    logger.error(f"无法播放歌曲 '{song_name}': {e}", exc_info=True)
+                    return f"歌曲 '{song_name}' 的播放链接: {song_url}\n错误：无法播放歌曲: {e}"
             else:
                 logger.error(f"未能为 mid '{song_mid}' 获取到有效的播放链接")
                 return "错误：未能从API获取到有效的播放链接"
@@ -300,6 +495,17 @@ class MusicPlayerTool(ToolBase):
         except Exception as e:
             logger.error(f"获取歌手歌曲列表时发生错误: {e}", exc_info=True)
             return f"错误：获取歌手歌曲列表时发生网络或解析错误: {e}"
+
+    @tool(description='当在播放歌曲时，用户说“停止播放”等类似的话调用此工具')
+    def stop_music() -> str:
+        """停止播放音乐"""
+        if not RobotState.is_playing_music:
+            return "当前没有正在播放的音乐"
+        player.stop()
+        return "音乐播放已停止"
+
+
+
 
 if __name__ == "__main__":
     logger.info("启动音乐播放器服务 (Music Player Server) ...")
