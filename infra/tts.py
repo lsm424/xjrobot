@@ -22,8 +22,14 @@ class PaddleTTS:
         self.paddle_server_port = server_port
 
     def tts(self, text, speak=False, out_file="./assets/synth_audio_websocket.wav"):
-        text = re.sub(r"[\"'!]", "", text)
-        text = re.sub(r"°", "度", text)
+        replacements = {
+            r"[\"'!]": "",       # 移除引号和感叹号
+            r"°": "度",         # 将度数符号替换为汉字
+            r"\n\n": "，",      # 将连续换行替换为逗号
+            r"\*\*": ""        # 将双星号替换为单星号
+        }
+        for pattern, repl in replacements.items():
+            text = re.sub(pattern, repl, text)
         logger.info(f'准备调用tts: {text}')
         try:
             self.client_executor(

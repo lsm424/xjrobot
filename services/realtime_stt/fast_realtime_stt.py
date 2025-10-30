@@ -29,3 +29,4 @@ class FastRealtimeSTT(BaseRealtimeSTT):
             logger.error(f"录音过程中出错: {e}")
             return None
 
+ 
