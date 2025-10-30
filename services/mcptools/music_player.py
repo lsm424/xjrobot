@@ -214,7 +214,8 @@ class MusicPlayerTool(ToolBase):
 3.用户输入：‘xxx有些什么歌？’（xxx为人名，回到步骤2）
 4.用户输入：‘xxx的yyy‘或者’xxx yyy‘（我想听几个字可以省略，xxx为人名，yyy为歌曲名，工具使用链路为search_song_id→get_song_url）
 5.用户输入：‘我想听歌词xxx的歌’或者‘xxx是什么歌’（xxx为歌词内容，工具使用链路为lyrics_to_song_name→search_song_id→get_song_url）
-根据工具调用返回的结果综合回复，比如工具返回歌曲列表，引导用户进行选择；如果确认工具返回播放链接调用成功，回复用户播放xxx成功，否则需要提醒用户没能正确播放'''
+根据工具调用返回的结果综合回复，比如工具返回歌曲列表，引导用户进行选择；如果确认工具返回播放链接调用成功，回复用户播放xxx成功，否则需要提醒用户没能正确播放
+如果是停止播放，需要调用stop_music工具'''
 
 
     @tool(description="有歌曲名字的情况下（或者用户选择了某首歌），根据歌曲名称搜索歌曲ID,(如果已经通过对话获取了用户想听的歌曲名字，先使用这个工具获取歌曲ID，再使用get_song_url工具获取歌曲链接)")
@@ -487,7 +488,7 @@ class MusicPlayerTool(ToolBase):
                 if len(song_list) > 10:
                     song_list_message += f"\n... 还有 {len(song_list) - 10} 首歌曲未显示"
                 
-                return f"{id_message}\n(请你一字不差的返回后面的话)找到歌手 '{singer_name}' 的歌曲列表，请告诉我您想听哪首歌的名称：\n{song_list_message}"
+                return f"{id_message}\n请你一字不差的返回后面的话:找到歌手 '{singer_name}' 的歌曲列表，请告诉我您想听哪首歌的名称：\n{song_list_message}"
             else:
                 logger.warning(f"未能获取歌手ID {singer_mid} 的歌曲列表")
                 return f"未能获取歌手ID {singer_mid} 的歌曲列表"

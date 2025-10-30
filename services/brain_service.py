@@ -2,7 +2,8 @@ import asyncio
 from typing import Any, Dict, List
 from services.mcptools import get_tools
 from functools import reduce
-from langgraph.prebuilt import create_react_agent
+# from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 from langchain_ollama import ChatOllama
 from services.history_chat_service import history_chat
 import json
@@ -19,8 +20,9 @@ class RobotBrainService:
         tools = json.dumps({x.name: x.tools_info() for x in self.tools}, indent=4, ensure_ascii=False)
         logger.info(f'已注册mcp工具：{tools}')
         tools = reduce(lambda x,y: x + y, [x.get_tool_functions() for x in self.tools])
-        self.agent = create_react_agent(llm, tools)
         self._sp = self.__system_prompt()
+        self.agent = create_agent(llm, tools,system_prompt=self._sp)
+        
         
     def __system_prompt(self) -> str:
         usages = '\n'.join([f'【{x.name}使用流程】\n{x.usage()}' for x in self.tools if x.usage()])
@@ -44,7 +46,7 @@ class RobotBrainService:
 - 每次都要考虑上下文之间的关系，不能忽略任何信息；
 - 同样的事情每次都要调用工具，绝对不能直接返回结果；
 - 如果工具出现报错，请你回复用户并说明问题，不要直接返回错误信息，并让用户重新尝试询问
-- 按照工具的返回要求去做；
+- 如果工具有返回要求，按照工具的返回要求去回复；
 【回答规范】
 - 如果遇到工具的返回结果为总结后面的内容或者一字不差的返回后面的内容，请按照工具的说明去回复；
 - 尽可能将答案用中文回复；
@@ -82,14 +84,23 @@ class RobotBrainService:
 
     def ask(self, question: str):
         history_chats = history_chat.get_history()
-        if history_chats:
-            history_chats = ';'.join(map(lambda x: f'用户问了{x["user_question"]},回复为{x["robot_answer"]}', history_chats))
-            formatted_question = f"之前{history_chats}...现在接着问的是：{question} /nothink"
-        else:
-            formatted_question = question + "/nothink"
+        # if history_chats:
+        #     history_chats = ';'.join(map(lambda x: f'用户问了{x["user_question"]},回复为{x["robot_answer"]}', history_chats))
+        #     formatted_question = f"之前{history_chats}...现在接着问的是：{question} /nothink"
+        # else:
+        #     formatted_question = question + "/nothink"
         
-        message = [{"role": "system", "content": self._sp},
-            {"role": "user", "content": formatted_question}]
+        # message = [{"role": "system", "content": self._sp},
+        #     {"role": "user", "content": formatted_question}]
+
+        message = []
+        if history_chats:
+            for m in history_chats:
+                message.append({"role": "user", "content": m["user_question"]})
+                message.append({"role": "assistant", "content": m["robot_answer"]})
+        
+        message.append({"role": "user", "content": question + "/nothink"})
+
         logger.info(f'ask: {message}')
         
         try:

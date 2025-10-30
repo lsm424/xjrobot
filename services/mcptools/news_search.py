@@ -17,10 +17,33 @@ class NewsSearchTool(ToolBase):
         super().__init__(name='新闻搜索')
     
     def usage(self) -> Literal[str|None]:
-        return '''1.用户输入：'搜索xxx新闻'或者'xxx的新闻'或者'xxx新闻'（xxx为关键词）- 使用关键词搜索工具
-2.用户输入：'最新的新闻'或者'最近有什么新闻'或者'新闻' - 使用最新新闻工具获取最新新闻
-3.用户输入：一个可能需要联网查询解决的问题，例如‘xxx最近怎么样’或者‘xxx的最新动态’或者‘xxx的情况’（xxx为人名或者其他名词）- 使用关键词搜索工具
-根据工具调用返回的新闻列表结果综合回复，简单整理后回复用户，不要过长，控制在100字内'''
+        return '''新闻搜索工具使用指南：
+        # 功能说明
+        该工具用于搜索新闻内容和获取最新新闻列表。调用工具后，请根据返回结果总结回答用户问题。
+        # 调用场景与对应方法
+        1. 当用户询问特定主题的新闻时，例如：
+           - "搜索科技新闻"
+           - "体育的新闻"
+           - "人工智能新闻"
+           请使用：search_news_by_keyword_and_abstract(关键词)  
+        2. 当用户仅想了解最新新闻概览时，例如：
+           - "最新的新闻"
+           - "最近有什么新闻"
+           - "新闻摘要"
+           请使用：get_paper_news()   
+        3. 当用户询问特定事物的最新情况时，例如：
+           - "华为最近怎么样"
+           - "苹果的最新动态"
+           - "xxx在哪天？"，提取关键词为“xxx 时间”
+           请使用：search_news_by_keyword_and_abstract(查询词)
+        4. 当历史聊天和搜索记录无法解答用户的问题时，例如：
+           - 用户紧接着前面的内容询问，但是你回答不出来，或者历史搜索没有相关内容
+           请使用：search_news_by_keyword_and_abstract(用户的问题)
+        # 输出要求
+        - 调用工具后，请将搜索结果总结为简洁回答
+        - 回答控制在100字以内
+        - 必须包含明确的回复内容，不要仅返回工具结果
+        '''
     
     # 添加请求头，模拟浏览器
     HEADERS = {
@@ -33,9 +56,21 @@ class NewsSearchTool(ToolBase):
     # 必应搜索前缀
     BING_SEARCH_PREFIX = 'https://cn.bing.com/search?q='
     
-    @tool(description="根据关键词搜索最新资讯，返回新闻列表，包含标题、来源和摘要。当用户提及具体某个事情或特定关键词时使用此工具。")
-    def search_news_by_keyword(keyword: str = Field(..., description="搜索关键词。你需要对回答进行归纳总结，控制在100字内")) -> str:
-        """根据关键词搜索最新新闻"""
+    def clean_text(text):
+        """清理文本，去除URL链接和Unicode符号，保留主要中文文本"""
+        # 去除URL链接
+        text = re.sub(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', '', text)
+        # 去除Unicode符号，保留中文、英文、数字和常用标点
+        text = re.sub(r'[\u0000-\u001f\u007f-\u009f\u2000-\u206f\u2100-\u214f\u2460-\u24ff\u3000-\u303f]+', '', text)
+        # 去除多余的空白字符
+        text = re.sub(r'\s+', ' ', text)
+        # 去除多余的标点符号
+        text = re.sub(r'([,，.。!?！？;:：；""'"'"'])\1+', '\1', text)
+        return text.strip()
+    
+    @tool(description="【搜索特定主题新闻】根据关键词搜索相关最新新闻。当用户询问特定主题、人物或事件的新闻时使用此工具。要对返回内容进行总结，控制在100字以内。")
+    def search_news_by_keyword_and_abstract(keyword: str = Field(..., description="搜索关键词")) -> str:
+        """根据关键词搜索最新新闻并总结"""
         logger.info(f"搜索新闻关键词: '{keyword}'")
         
         try:
@@ -56,32 +91,40 @@ class NewsSearchTool(ToolBase):
             logger.info(f"响应状态码: {response.status_code}")
             logger.info(f"响应内容长度: {len(response.text)} 字符")
             
-            # 尝试多种选择器策略以适应必应搜索的实际HTML结构
-            # 策略1: 查找新闻特定的容器
-            result_containers = soup.select('div.news-card, div.news-item, div.b_ans, div.b_algo')
+            # 优化选择器策略，优先使用.b_algo容器
+            # 策略1: 优先查找.b_algo容器，这是必应搜索结果的主要容器
+            result_containers = list(soup.select('div.b_algo'))  # 转换为列表以便后续操作
+            logger.info(f"主选择器找到 {len(result_containers)} 个.b_algo容器")
             
-            # 策略2: 如果策略1失败，查找所有包含链接的结果项
-            if not result_containers:
-                result_containers = soup.find_all(['div', 'li'], class_=re.compile(r'news|ans|algo|result', re.I))
-                logger.info(f"备用选择器找到 {len(result_containers)} 个容器")
+            # 策略2: 如果策略1找到的容器较少，补充其他可能的容器
+            # if len(result_containers) < 5:
+            additional_containers = soup.select('div.b_ans, li.b_algo')
+            for container in additional_containers:
+                if container not in result_containers:
+                    result_containers.append(container)
+            logger.info(f"补充后共找到 {len(result_containers)} 个容器")
             
-            # 策略3: 如果仍未找到，查找所有带有href属性的a标签的父容器
-            if not result_containers:
-                link_elements = soup.find_all('a', href=re.compile(r'^http'))
-                result_containers = list(set([link.parent for link in link_elements]))
-                logger.info(f"链接父容器选择器找到 {len(result_containers)} 个容器")
-                
+            # 策略3: 如果仍未找到足够的容器，使用更通用的选择器
+            # if len(result_containers) < 3:
+            result_containers = list(soup.find_all(['div', 'li'], class_=re.compile(r'news|ans|algo|result', re.I)))
+            logger.info(f"备用选择器找到 {len(result_containers)} 个容器")
+            
             # 限制最多返回10条新闻
-            count = 0
             seen_links = set()  # 用于去重
+            seen_titles = set()  # 用于去重标题
             
             for container in result_containers:
-                if count >= 10:
-                    break
                 
                 try:
-                    # 尝试不同的方式获取链接和标题
-                    link_element = container.find('a', href=re.compile(r'^http'))
+                    # 优化标题提取逻辑
+                    # 1. 优先查找容器内的h2标签中的a链接（必应搜索结果的标准格式）
+                    h2_element = container.find('h2')
+                    if h2_element:
+                        link_element = h2_element.find('a', href=re.compile(r'^http'))
+                    else:
+                        # 2. 如果没有h2标签，查找容器内的其他a链接
+                        link_element = container.find('a', href=re.compile(r'^http'))
+                    
                     if not link_element:
                         continue
                     
@@ -89,37 +132,54 @@ class NewsSearchTool(ToolBase):
                     if not link or link in seen_links:
                         continue
                     
+                    # 提取并清理标题
                     title = link_element.get_text(strip=True)
-                    if not title or len(title) < 5:
+                    # 清理标题文本
+                    cleaned_title = NewsSearchTool.clean_text(title)
+                    
+                    if not cleaned_title or len(cleaned_title) < 5 or cleaned_title in seen_titles:
                         continue
                     
-                    # 获取摘要 - 尝试多种方式
+                    # 获取摘要 - 优化提取逻辑
                     abstract = ''
-                    # 方式1: 查找p标签
-                    abstract_element = container.find('p')
-                    # 方式2: 查找特定class的span标签
-                    if not abstract_element:
-                        abstract_element = container.find('span', class_=re.compile(r'abstract|snippet|desc', re.I))
-                    # 方式3: 查找div标签中的文本
-                    if not abstract_element:
-                        abstract_elements = container.find_all('div', recursive=False)
-                        if len(abstract_elements) > 1:
-                            # 尝试第二个div作为摘要
-                            abstract = abstract_elements[1].get_text(strip=True)[:200]
                     
-                    if abstract_element:
-                        abstract = abstract_element.get_text(strip=True)[:200]  # 限制摘要长度
+                    # 方式1: 查找.b_caption类（必应搜索结果的标准摘要容器）
+                    caption_element = container.find('div', class_='b_caption')
+                    if caption_element:
+                        # 在摘要容器中查找p标签或直接获取文本
+                        p_element = caption_element.find('p')
+                        if p_element:
+                            abstract = p_element.get_text(strip=True)[:200]
+                        else:
+                            abstract = caption_element.get_text(strip=True)[:200]
+                    else:
+                        # 方式2: 查找p标签
+                        abstract_element = container.find('p')
+                        if abstract_element:
+                            abstract = abstract_element.get_text(strip=True)[:200]
+                        # 方式3: 查找特定class的div标签
+                        elif not abstract:
+                            abstract_elements = container.find_all('div', recursive=False)
+                            for div in abstract_elements:
+                                # 避免使用包含链接或脚本的div
+                                if not div.find('a') and not div.find('script'):
+                                    div_text = div.get_text(strip=True)
+                                    if len(div_text) > 20 and len(div_text) < 500:  # 合理长度的文本更可能是摘要
+                                        abstract = div_text[:200]
+                                        break
+                    
+                    # 清理摘要文本
+                    cleaned_abstract = NewsSearchTool.clean_text(abstract)
                     
                     # 构建新闻条目
                     news_item = {
-                        'id': count + 1,
-                        'title': f"{title}",
-                        'abstract': abstract
+                        'title': cleaned_title,
+                        'abstract': cleaned_abstract
                     }
                     
                     news_list.append(news_item)
                     seen_links.add(link)
-                    count += 1
+                    seen_titles.add(cleaned_title)
                 except Exception as e:
                     logger.error(f"解析单个新闻项时出错：{e}")
                     continue
@@ -127,13 +187,13 @@ class NewsSearchTool(ToolBase):
             # 格式化返回结果，便于用户阅读
             formatted_news = []
             for item in news_list:
-                formatted_news.append(f"标题：{item['title']}")
+                formatted_news.append(f"·标题：{item['title']}")
                 if item['abstract']:
                     formatted_news.append(f"摘要：{item['abstract']}")
-                formatted_news.append("---")
+                # formatted_news.append("\n")
             
             if formatted_news:
-                return "搜索到以下新闻：\n" + "\n".join(formatted_news[:-1])  # 去掉最后一个分隔符
+                return "请你根据用户问题，总结概括一下后面的新闻内容，今天日期是" + datetime.now().strftime("%Y-%m-%d") + "\n".join(formatted_news[:-1])  # 去掉最后一个分隔符
             else:
                 return "未找到相关新闻"
                 
@@ -141,7 +201,7 @@ class NewsSearchTool(ToolBase):
             logger.error(f"搜索新闻时发生错误：{e}", exc_info=True)
             return f"错误：搜索新闻时发生网络或解析错误: {e}"
     
-    @tool(description="获取最新新闻列表。当用户只是想听听新闻，看看最新有什么新闻时使用此工具。你需要对回答进行归纳总结，控制在100字内")
+    @tool(description="【获取最新新闻概览】获取最新的综合新闻列表。当用户仅想了解当前有哪些热点新闻时使用此工具。要对返回内容进行总结，总结为用户可理解的内容。")
     def get_paper_news() -> str:
         """获取最新新闻列表"""
         logger.info("获取最新新闻")
@@ -164,11 +224,11 @@ class NewsSearchTool(ToolBase):
                     formatted_news.append(f"{idx}. 标题：{news_item.get('title', '未知标题')}")
                     formatted_news.append("")
                 
-                # 随机选择一条作为推荐
-                random_news = random.choice(data["items"])
-                formatted_news.append(f"推荐阅读：{random_news.get('title', '未知标题')}")
+                # # 随机选择一条作为推荐
+                # random_news = random.choice(data["items"])
+                # formatted_news.append(f"推荐阅读：{random_news.get('title', '未知标题')}")
                 
-                return "总结概括一下后面的新闻列表\n" + "\n".join(formatted_news)
+                return "请你根据用户问题，总结概括一下后面的新闻列表，今天日期是" + datetime.now().strftime("%Y-%m-%d") + "\n" + "\n".join(formatted_news)
             else:
                 return "未获取到新闻数据"
                 
@@ -191,3 +251,4 @@ if __name__ == "__main__":
     # 可以在这里添加测试代码
     # news_tool = NewsSearchTool()
     # print(news_tool.search_news("最新科技新闻"))
+
