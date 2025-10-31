@@ -4,7 +4,8 @@ from common import logger
 from common.config import cfg
 from services.robot_state import RobotState
 import os
-from services.robot_state import RobotState
+from services.robot_state import RobotState, RobotAction
+from infra.audio import audio_player
 class Robot:
 
     def __init__(self):
@@ -22,9 +23,6 @@ class Robot:
         )
         self.tts = RobotTTS(cfg.get('tts', 'paddle_server_ip'), 
             cfg.getint('tts', 'paddle_server_port'))
-        # 将TTS客户端实例保存到全局状态中，供预回复工具使用
-        
-        RobotState.tts_client = self.tts
         
 
     def run(self):
@@ -36,12 +34,19 @@ class Robot:
             if not user_input:
                 logger.info('user_input为None，继续下一轮循环')
                 continue
-            answer = self.robot_brain.ask(user_input)
-            logger.info(f'机器人说: {answer}')
-            if not answer:
-                self.tts.input_text('刚刚网络出了一些问题，请您重新问一次') 
-                continue    
-            elif answer.strip() != '':
-                self.tts.input_text(answer)
-            else:
-                self.tts.input_text('刚刚网络出了一些问题，请您重新问一次') 
+            for answer in self.robot_brain.ask(user_input):
+                self._handle_action(answer['action_type'], answer['content'])
+
+    def _handle_action(self, action_type, content):
+        if action_type == RobotAction.PRE_ANSWER:
+            logger.info(f'预回复: {content}')
+            self.tts.input_text(content)
+        elif action_type == RobotAction.REGULAR_ANSWER:
+            logger.info(f'机器人说: {content}')
+            self.tts.input_text(content)
+        elif action_type == RobotAction.PLAY_AUDIO:
+            logger.info(f'播放音频: {content}')
+            audio_player.play(content)
+        elif action_type == RobotAction.STOP_AUDIO:
+            logger.info('停止播放音频')
+            audio_player.safe_stop()

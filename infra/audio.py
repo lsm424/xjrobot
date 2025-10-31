@@ -1,12 +1,16 @@
 import os
+import time
+import queue
+import threading
+import requests
 import numpy as np
 import sounddevice as sd
 import scipy.io.wavfile as wav
 import io
 from common import logger
 import pygame
-
-
+import subprocess
+import platform
 threshold=2
 silence_duration=2
 samplerate=8000
@@ -86,3 +90,216 @@ class AudioTool:
         return wav_io
 
 audio_tool = AudioTool()
+
+
+class FlacStreamPlayer:
+    """
+    在线解析 FLAC 链接，边下边播
+    使用 ffmpeg 解码并播放
+    """
+    def __init__(self, buffer_size: int = 1024 * 64):
+        self.buffer_size = buffer_size
+        self.download_queue = queue.Queue(maxsize=200)  # 限制缓存大小
+        self.stop_event = threading.Event()
+        self.stop_event.set()
+        self.ffmpeg_proc = None
+
+        # 根据操作系统设置ffmpeg路径
+        system = platform.system().lower()
+        if system not in ('windows', 'linux'):
+            raise RuntimeError(f"不支持的操作系统: {system}")
+        ffmpeg_dir = os.path.join('assets', 'ffmpeg', system)
+        if not os.path.isdir(ffmpeg_dir):
+            raise RuntimeError(f"ffmpeg目录不存在: {ffmpeg_dir}")
+        # 将ffmpeg目录添加到PATH环境变量
+        os.environ['PATH'] = ffmpeg_dir + os.pathsep + os.environ.get('PATH', '')
+
+
+    def _download_worker(self, resource_uri):
+        """后台下载线程：持续下载 FLAC 数据并写入队列"""
+        try:
+            if resource_uri.startswith('http'):
+                with requests.get(resource_uri, stream=True, timeout=10) as resp:
+                    resp.raise_for_status()
+                    for chunk in resp.iter_content(chunk_size=self.buffer_size):
+                        if not self.is_playing:
+                            break
+                        if chunk:
+                            self.download_queue.put(chunk)
+            elif os.path.exists(resource_uri):
+                # 本地文件：分块读取并推送到队列
+                with open(resource_uri, 'rb') as f:
+                    while self.is_playing:
+                        chunk = f.read(self.buffer_size)
+                        if not chunk:
+                            break
+                        self.download_queue.put(chunk)
+            else:
+                logger.error(f"不支持的资源类型: {resource_uri}")
+        except Exception as e:
+            logger.error(f"下载出错: {e}")
+        finally:
+            # 发送结束标记
+            self.download_queue.put(None)
+
+    def _play_worker(self):
+        """播放线程：从队列读取数据并直接喂给 ffplay 实现真正的边下边播"""
+        ffmpeg_proc = None  # 使用局部变量存储进程引用
+        try:
+            # 启动 ffplay 子进程，直接从 stdin 读取 FLAC 数据流
+            cmd = ['ffplay', '-nodisp', '-autoexit', '-i', '-']
+            ffmpeg_proc = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL
+            )
+            
+            # 更新实例变量
+            self.ffmpeg_proc = ffmpeg_proc
+
+            # 直接将下载的数据块写入 ffplay 的 stdin，实现边下边播
+            while self.is_playing:
+                try:
+                    chunk = self.download_queue.get(timeout=1)
+                    if chunk is None:  # 下载结束
+                        break
+                    if ffmpeg_proc.stdin and self.is_playing:
+                        try:
+                            ffmpeg_proc.stdin.write(chunk)
+                            ffmpeg_proc.stdin.flush()  # 确保数据立即发送到 ffplay
+                        except BrokenPipeError:
+                            logger.warning("管道已关闭，停止写入数据")
+                            break
+                    # print(f"已播放数据块大小: {len(chunk)}")
+                except queue.Empty:
+                    continue
+                except Exception as e:
+                    if self.is_playing:
+                        logger.error(f"播放数据块时出错: {e}")
+            
+            # 安全关闭 stdin，通知 ffplay 输入已结束
+            try:
+                if ffmpeg_proc.stdin:
+                    ffmpeg_proc.stdin.close()
+            except:
+                pass
+
+            # 等待 ffmpeg 结束
+            try:
+                if ffmpeg_proc:
+                    ffmpeg_proc.wait(timeout=2)  # 添加超时避免永久阻塞
+            except subprocess.TimeoutExpired:
+                logger.warning("ffmpeg进程等待超时，强制终止")
+                try:
+                    ffmpeg_proc.terminate()
+                except:
+                    pass
+        except Exception as e:
+            logger.error(f"播放出错: {e}")
+        finally:
+            # 确保进程引用被清除
+            self.ffmpeg_proc = None
+            # 清空队列，避免下次播放时使用旧数据
+            try:
+                while not self.download_queue.empty():
+                    self.download_queue.get_nowait()
+            except:
+                pass
+
+    def play(self, resource: str):
+        """开始边下边播（非阻塞模式）"""
+        logger.info(f"播放: {resource}")
+        # 首先停止当前播放（如果有）
+        if self.safe_stop():
+            time.sleep(1)
+
+        # 完全重置所有状态
+        self.stop_event.clear()  # 重置停止事件
+        # 清空队列，确保没有旧数据
+        try:
+            while not self.download_queue.empty():
+                self.download_queue.get_nowait()
+        except:
+            pass
+                
+        # 启动下载和播放线程
+        dl_thread = threading.Thread(target=self._download_worker, args=(resource,), daemon=True)
+        play_thread = threading.Thread(target=self._play_worker, daemon=True)
+
+        dl_thread.start()
+        play_thread.start()
+        
+        # 创建一个监控线程来处理播放完成后的清理工作
+        threading.Thread(target=self._monitor_playback, 
+                    args=(dl_thread, play_thread), daemon=True).start()
+
+        # 立即返回，不阻塞主线程
+        logger.info("音乐开始播放，主线程继续执行其他任务")
+        return
+        
+    def _monitor_playback(self, dl_thread, play_thread):
+        """监控播放过程并在完成后清理资源"""
+        try:
+            # 等待下载和播放线程结束
+            while self.is_playing:
+                if not dl_thread.is_alive() and self.download_queue.empty():
+                    break
+                time.sleep(0.5)
+        except Exception as e:
+            logger.error(f"监控播放过程中出错: {e}")
+        finally:
+            # 确保资源被正确清理
+            self.safe_stop()
+            try:
+                dl_thread.join(timeout=2)
+                play_thread.join(timeout=2)
+            except:
+                pass
+            logger.info("播放结束，资源已清理")
+    
+    @property
+    def is_playing(self):
+        return not self.stop_event.is_set()
+
+    def safe_stop(self):
+        """停止播放和下载"""
+        # 设置停止事件
+        if not self.is_playing:
+            logger.info("当前未在播放音乐，无需停止")
+            return False
+
+        logger.info("停止播放音乐...")
+        self.stop_event.set()
+
+        # 安全终止ffmpeg进程
+        if self.ffmpeg_proc:
+            try:
+                if self.ffmpeg_proc.poll() is None:
+                    self.ffmpeg_proc.terminate()
+                    # 添加超时，避免永久阻塞
+                    try:
+                        self.ffmpeg_proc.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        logger.warning("ffmpeg进程终止超时")
+            except Exception as e:
+                logger.error(f"终止ffmpeg进程时出错: {e}")
+            finally:
+                # 确保清除进程引用
+                self.ffmpeg_proc = None
+        
+        # 清空队列，避免旧数据影响下次播放
+        try:
+            while not self.download_queue.empty():
+                try:
+                    self.download_queue.get_nowait()
+                except queue.Empty:
+                    break
+        except Exception as e:
+            logger.error(f"清空队列时出错: {e}")
+        
+        # 清除正在播放音乐的标志位
+        logger.info("音乐播放已停止，资源已清理")
+        return True
+
+audio_player = FlacStreamPlayer()

@@ -14,6 +14,20 @@ XJRobot 是一个基于 Python 的智能机器人助手项目，集成了语音�
 - **数据库支持**：使用 SQLAlchemy 或类似 ORM 管理数据模型。
 - **机器人状态管理**：跟踪机器人当前状态。
 
+## 系统架构
+
+XJRobot 采用分层架构设计，从用户交互层到外部服务层，实现了模块化和可扩展的智能机器人系统：
+
+![XJRobot架构图](./assets/pics/architecture_diagram.svg)
+
+### 架构说明
+
+- **用户交互层**：处理语音输入/输出、文本交互和音频播放
+- **核心服务层**：包含Robot主控制器、Brain服务（基于LangChain）、状态管理、聊天历史和中间件
+- **MCP工具层**：基于MCP协议的模块化工具生态，支持音乐播放、天气查询、新闻搜索等功能
+- **基础设施层**：提供STT/TTS服务、音频处理、数据库和配置管理等基础能力
+- **外部服务层**：集成Ollama大语言模型和各种第三方API服务
+
 ## 安装
 
 1. 克隆仓库：
@@ -29,6 +43,15 @@ XJRobot 是一个基于 Python 的智能机器人助手项目，集成了语音�
 
 3. 配置：
    - 编辑 `config.ini` 文件，设置必要的参数
+   - 如果使用 Ollama 部署，建议设置以下环境变量以充分利用 GPU 资源：
+     ```bash
+     export CUDA_VISIBLE_DEVICES=0,1,2,3
+     export OLLAMA_GPU_LAYER=cuda
+     export OLLAMA_NUM_GPU=4
+     export OLLAMA_SCHED_SPREAD=1
+     export OLLAMA_KEEP_ALIVE=-1
+     export OLLAMA_HOST=0.0.0.0
+     ```
 
 ## 使用
 

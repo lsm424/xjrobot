@@ -1,7 +1,10 @@
 from .base import ToolBase
-from langchain_core.tools import tool
 from common import logger
-from services.robot_state import RobotState
+from services.robot_state import RobotAction
+from langgraph.config import get_stream_writer
+from langgraph.types import Command
+from langchain_core.messages import AnyMessage, BaseMessage, ToolMessage  # noqa: TC002
+from langchain.tools import tool, ToolRuntime
 
 class PreReplyTool(ToolBase):
     def __init__(self):
@@ -15,7 +18,7 @@ class PreReplyTool(ToolBase):
         return "当需要执行耗时操作时，先调用pre_reply函数给出提示信息"
 
     @tool(description="预回复工具，用于在执行耗时操作前，提前向用户说明即将进行的操作,例如'正在搜索xxx的信息，请您耐心等待'")
-    def pre_reply(message: str) -> str:
+    def pre_reply(message: str, runtime: ToolRuntime) -> str:
         """
         向用户发送预回复消息，提示即将进行的操作
         
@@ -25,17 +28,7 @@ class PreReplyTool(ToolBase):
         Returns:
             str: 预回复状态信息
         """
-        logger.info(f"预回复消息: {message}")
+        # logger.info(f"预回复消息: {message}")
+        RobotAction.action_immediate(RobotAction.PRE_ANSWER, message)
+        return "预回复消息播报成功"
         
-        # 检查是否有可用的TTS客户端
-        if hasattr(RobotState, 'tts_client') and RobotState.tts_client:
-            try:
-                # 使用TTS客户端播报预回复消息
-                RobotState.tts_client.input_text(message)
-                return "预回复消息播报成功"
-            except Exception as e:
-                logger.error(f"预回复消息播报失败: {e}")
-                return "预回复消息播报失败"
-        else:
-            logger.warning("TTS客户端未初始化，无法播报预回复消息")
-            return "TTS客户端未初始化"

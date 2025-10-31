@@ -26,11 +26,11 @@ class PaddleTTS:
             r"[\"'!]": "",       # 移除引号和感叹号
             r"°": "度",         # 将度数符号替换为汉字
             r"\n\n": "，",      # 将连续换行替换为逗号
-            r"\*\*": ""        # 将双星号替换为单星号
+            r'([^\u4e00-\u9fa5\d])\1+': "" # 非连续的中文和数字，则置空
         }
         for pattern, repl in replacements.items():
             text = re.sub(pattern, repl, text)
-        logger.info(f'准备调用tts: {text}')
+        # logger.info(f'准备调用tts: {text}')
         try:
             self.client_executor(
                 input=text,

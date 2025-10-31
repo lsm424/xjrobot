@@ -1,16 +1,45 @@
+import traceback
 import asyncio
 from typing import Any, Dict, List
 from services.mcptools import get_tools
 from functools import reduce
-# from langgraph.prebuilt import create_react_agent
+from langgraph.runtime import Runtime
 from langchain.agents import create_agent
 from langchain_ollama import ChatOllama
+from langchain.agents.middleware import AgentMiddleware, AgentState
+from langgraph.prebuilt.tool_node import ToolCallRequest
+from collections.abc import Awaitable, Callable
+from langchain_core.messages import AnyMessage, BaseMessage, ToolMessage  # noqa: TC002
 from services.history_chat_service import history_chat
+from langgraph.types import Command  # noqa: TC002
+from langchain_core.messages.ai import AIMessage
 import json
 from common import logger
+from .robot_state import RobotAction
+from langchain.messages import SystemMessage, HumanMessage
+from queue import Queue
+from langgraph.store.memory import InMemoryStore
 
 LOOP = asyncio.new_event_loop()
 asyncio.set_event_loop(LOOP)
+
+
+class BrainMiddleware(AgentMiddleware):
+    def before_model(self, state: AgentState, runtime: Runtime) -> dict[str, Any] | None:
+        logger.info(f"About to call model with {len(state['messages'])} messages")
+        return None
+
+    def after_model(self, state: AgentState, runtime: Runtime) -> dict[str, Any] | None:
+        ai_answer = state['messages'][-1].content
+        if ai_answer:
+            logger.info(f"模型回答: {ai_answer}")
+        return None
+
+    def wrap_tool_call(self,request: ToolCallRequest,handler: Callable[[ToolCallRequest], ToolMessage | Command],
+    ) -> ToolMessage | Command:
+        result = handler(request)
+        logger.info(f"调用工具：{request.tool_call['name']} 参数: {request.tool_call['args']} 返回: {result.content}")
+        return result
 
 
 class RobotBrainService:
@@ -21,7 +50,11 @@ class RobotBrainService:
         logger.info(f'已注册mcp工具：{tools}')
         tools = reduce(lambda x,y: x + y, [x.get_tool_functions() for x in self.tools])
         self._sp = self.__system_prompt()
-        self.agent = create_agent(llm, tools,system_prompt=self._sp)
+        self.agent = create_agent(llm, tools, 
+            system_prompt=self._sp, 
+            middleware=[BrainMiddleware()],
+            store=InMemoryStore(),
+        )
         
         
     def __system_prompt(self) -> str:
@@ -90,6 +123,51 @@ class RobotBrainService:
         return sp
 
 
+    def ask(self, question: str):
+        history_chats = history_chat.get_history()
+        message = []
+        if history_chats:
+            for m in history_chats:
+                message.append(HumanMessage(content=m["user_question"]))
+                message.append(AIMessage(content=m["robot_answer"]))
+        
+        message.append(HumanMessage(content=question + "/nothink"))
+
+        logger.info(f'ask: {message}')
+
+        try:
+            has_regular_answer = False
+            for stream_mode, chunk in self.agent.stream({"messages": message}, stream_mode=["updates", "custom"]):
+                # logger.debug(f'stream_mode: {stream_mode}, chunk: {chunk}')
+                yield_content = None
+                if stream_mode == 'updates':  # 大模型的输出(包含工具输出和llm输出)
+                    msgs = chunk.get('model', {}).get('messages', [])
+                    for msg in msgs:
+                        if not isinstance(msg, AIMessage): # 过滤非llm输出
+                            continue
+                        yield_content = msg.content
+                        if 'think>' in yield_content:
+                            yield_content = yield_content.split('think>')[-1].strip()
+                        if yield_content:
+                            yield_content = {'action_type': RobotAction.REGULAR_ANSWER, 'content': yield_content}
+                            has_regular_answer = True
+                elif stream_mode == 'custom':  # 自定义输出
+                    yield_content = chunk
+
+                if yield_content:
+                    yield yield_content
+        except Exception as e:
+            logger.error(f'ask error: {e}, {traceback.format_exc()}')
+
+        final_action = RobotAction.pop_final_action(self.agent.store)
+        if final_action:
+            yield final_action
+            has_regular_answer = True
+
+        if not has_regular_answer:
+            yield {'action_type': RobotAction.REGULAR_ANSWER, 'content': '刚刚网络出了一些问题，请您重新问一次'}
+
+
     def __extract_steps_and_final(self, agent_response: Dict[str, Any]) -> Dict[str, Any]:
         messages = agent_response.get("messages", [])
         steps: List[str] = []
@@ -115,40 +193,3 @@ class RobotBrainService:
             logger.info(f'content: {message}')
 
         return steps, final_answer
-
-    def ask(self, question: str):
-        history_chats = history_chat.get_history()
-        # if history_chats:
-        #     history_chats = ';'.join(map(lambda x: f'用户问了{x["user_question"]},回复为{x["robot_answer"]}', history_chats))
-        #     formatted_question = f"之前{history_chats}...现在接着问的是：{question} /nothink"
-        # else:
-        #     formatted_question = question + "/nothink"
-        
-        # message = [{"role": "system", "content": self._sp},
-        #     {"role": "user", "content": formatted_question}]
-
-        message = []
-        if history_chats:
-            for m in history_chats:
-                message.append({"role": "user", "content": m["user_question"]})
-                message.append({"role": "assistant", "content": m["robot_answer"]})
-        
-        message.append({"role": "user", "content": question + "/nothink"})
-
-        logger.info(f'ask: {message}')
-        
-        try:
-            agent_response = LOOP.run_until_complete(self.agent.ainvoke({"messages": message}))
-            steps, final_answer = self.__extract_steps_and_final(agent_response)
-            logger.info(f'steps: {steps}')
-            logger.info(f'final_answer before: {final_answer}')
-            if 'think>' in final_answer:
-                final_answer = final_answer.split('think>')[-1].strip()
-            history_chat.save_chat(question, final_answer)   
-            logger.info(f'final_answer after: {final_answer}')         
-            return final_answer
-        except Exception as e:
-            logger.error(f'ask error: {e}')
-            return None
-
-

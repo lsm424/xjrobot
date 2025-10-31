@@ -1,0 +1,204 @@
+<svg width="1000" height="800" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="userGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4CAF50;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#45a049;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="coreGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2196F3;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1976D2;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="toolGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF9800;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F57C00;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="infraGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#9C27B0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7B1FA2;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="externalGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#607D8B;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#455A64;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- 背景 -->
+  <rect width="1000" height="800" fill="#f8f9fa" stroke="#e9ecef" stroke-width="2"/>
+  
+  <!-- 标题 -->
+  <text x="500" y="30" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#333">XJRobot 智能机器人架构图</text>
+  
+  <!-- 用户交互层 -->
+  <rect x="50" y="60" width="900" height="80" fill="url(#userGradient)" stroke="#4CAF50" stroke-width="2" rx="10"/>
+  <text x="500" y="85" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="white">用户交互层 (User Interface Layer)</text>
+  <text x="200" y="110" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="white">语音输入</text>
+  <text x="400" y="110" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="white">文本交互</text>
+  <text x="600" y="110" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="white">语音输出</text>
+  <text x="800" y="110" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="white">音频播放</text>
+  
+  <!-- 核心服务层 -->
+  <rect x="50" y="170" width="900" height="120" fill="url(#coreGradient)" stroke="#2196F3" stroke-width="2" rx="10"/>
+  <text x="500" y="195" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="white">核心服务层 (Core Service Layer)</text>
+  
+  <!-- Robot 主控制器 -->
+  <rect x="80" y="210" width="150" height="60" fill="#1976D2" stroke="#0D47A1" stroke-width="1" rx="5"/>
+  <text x="155" y="230" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">Robot</text>
+  <text x="155" y="245" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">主控制器</text>
+  <text x="155" y="260" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">robot.py</text>
+  
+  <!-- Brain Service -->
+  <rect x="260" y="210" width="150" height="60" fill="#1976D2" stroke="#0D47A1" stroke-width="1" rx="5"/>
+  <text x="335" y="230" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">Brain Service</text>
+  <text x="335" y="245" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">AI大脑服务</text>
+  <text x="335" y="260" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">LangChain + Agent</text>
+  
+  <!-- 状态管理 -->
+  <rect x="440" y="210" width="150" height="60" fill="#1976D2" stroke="#0D47A1" stroke-width="1" rx="5"/>
+  <text x="515" y="230" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">State Manager</text>
+  <text x="515" y="245" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">状态管理</text>
+  <text x="515" y="260" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">robot_state.py</text>
+  
+  <!-- 历史聊天 -->
+  <rect x="620" y="210" width="150" height="60" fill="#1976D2" stroke="#0D47A1" stroke-width="1" rx="5"/>
+  <text x="695" y="230" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">Chat History</text>
+  <text x="695" y="245" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">聊天历史</text>
+  <text x="695" y="260" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">history_chat_service.py</text>
+  
+  <!-- 中间件 -->
+  <rect x="800" y="210" width="120" height="60" fill="#1976D2" stroke="#0D47A1" stroke-width="1" rx="5"/>
+  <text x="860" y="230" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">Middleware</text>
+  <text x="860" y="245" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">中间件</text>
+  <text x="860" y="260" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">BrainMiddleware</text>
+  
+  <!-- MCP工具层 -->
+  <rect x="50" y="320" width="900" height="120" fill="url(#toolGradient)" stroke="#FF9800" stroke-width="2" rx="10"/>
+  <text x="500" y="345" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="white">MCP工具层 (MCP Tools Layer)</text>
+  
+  <!-- 音乐播放器 -->
+  <rect x="80" y="360" width="120" height="60" fill="#F57C00" stroke="#E65100" stroke-width="1" rx="5"/>
+  <text x="140" y="380" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">Music Player</text>
+  <text x="140" y="395" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">音乐播放</text>
+  <text x="140" y="410" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">music_player.py</text>
+  
+  <!-- 天气查询 -->
+  <rect x="220" y="360" width="120" height="60" fill="#F57C00" stroke="#E65100" stroke-width="1" rx="5"/>
+  <text x="280" y="380" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">Weather</text>
+  <text x="280" y="395" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">天气查询</text>
+  <text x="280" y="410" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">get_weather.py</text>
+  
+  <!-- 新闻搜索 -->
+  <rect x="360" y="360" width="120" height="60" fill="#F57C00" stroke="#E65100" stroke-width="1" rx="5"/>
+  <text x="420" y="380" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">News Search</text>
+  <text x="420" y="395" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">新闻搜索</text>
+  <text x="420" y="410" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">news_search.py</text>
+  
+  <!-- 数学工具 -->
+  <rect x="500" y="360" width="120" height="60" fill="#F57C00" stroke="#E65100" stroke-width="1" rx="5"/>
+  <text x="560" y="380" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">Math Tools</text>
+  <text x="560" y="395" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">数学工具</text>
+  <text x="560" y="410" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">math_tools_demo.py</text>
+  
+  <!-- 预回复工具 -->
+  <rect x="640" y="360" width="120" height="60" fill="#F57C00" stroke="#E65100" stroke-width="1" rx="5"/>
+  <text x="700" y="380" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">Pre Reply</text>
+  <text x="700" y="395" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">预回复</text>
+  <text x="700" y="410" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">pre_reply.py</text>
+  
+  <!-- 工具基类 -->
+  <rect x="780" y="360" width="120" height="60" fill="#F57C00" stroke="#E65100" stroke-width="1" rx="5"/>
+  <text x="840" y="380" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">Tool Base</text>
+  <text x="840" y="395" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">工具基类</text>
+  <text x="840" y="410" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">base.py</text>
+  
+  <!-- 基础设施层 -->
+  <rect x="50" y="470" width="900" height="120" fill="url(#infraGradient)" stroke="#9C27B0" stroke-width="2" rx="10"/>
+  <text x="500" y="495" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="white">基础设施层 (Infrastructure Layer)</text>
+  
+  <!-- STT服务 -->
+  <rect x="80" y="510" width="130" height="60" fill="#7B1FA2" stroke="#4A148C" stroke-width="1" rx="5"/>
+  <text x="145" y="530" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">STT Service</text>
+  <text x="145" y="545" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">语音识别</text>
+  <text x="145" y="560" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">realtime_stt/</text>
+  
+  <!-- TTS服务 -->
+  <rect x="230" y="510" width="130" height="60" fill="#7B1FA2" stroke="#4A148C" stroke-width="1" rx="5"/>
+  <text x="295" y="530" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">TTS Service</text>
+  <text x="295" y="545" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">语音合成</text>
+  <text x="295" y="560" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">robot_tts.py</text>
+  
+  <!-- 音频处理 -->
+  <rect x="380" y="510" width="130" height="60" fill="#7B1FA2" stroke="#4A148C" stroke-width="1" rx="5"/>
+  <text x="445" y="530" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">Audio</text>
+  <text x="445" y="545" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">音频处理</text>
+  <text x="445" y="560" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">infra/audio.py</text>
+  
+  <!-- 数据库 -->
+  <rect x="530" y="510" width="130" height="60" fill="#7B1FA2" stroke="#4A148C" stroke-width="1" rx="5"/>
+  <text x="595" y="530" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">Database</text>
+  <text x="595" y="545" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">数据库</text>
+  <text x="595" y="560" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">db/</text>
+  
+  <!-- 配置管理 -->
+  <rect x="680" y="510" width="130" height="60" fill="#7B1FA2" stroke="#4A148C" stroke-width="1" rx="5"/>
+  <text x="745" y="530" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">Config</text>
+  <text x="745" y="545" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">配置管理</text>
+  <text x="745" y="560" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">common/config.py</text>
+  
+  <!-- 日志系统 -->
+  <rect x="830" y="510" width="90" height="60" fill="#7B1FA2" stroke="#4A148C" stroke-width="1" rx="5"/>
+  <text x="875" y="530" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">Logger</text>
+  <text x="875" y="545" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">日志</text>
+  <text x="875" y="560" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">common/</text>
+  
+  <!-- 外部服务层 -->
+  <rect x="50" y="620" width="900" height="120" fill="url(#externalGradient)" stroke="#607D8B" stroke-width="2" rx="10"/>
+  <text x="500" y="645" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="white">外部服务层 (External Services Layer)</text>
+  
+  <!-- Ollama LLM -->
+  <rect x="120" y="660" width="150" height="60" fill="#455A64" stroke="#263238" stroke-width="1" rx="5"/>
+  <text x="195" y="680" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">Ollama LLM</text>
+  <text x="195" y="695" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">大语言模型</text>
+  <text x="195" y="710" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">ChatOllama</text>
+  
+  <!-- 音乐API -->
+  <rect x="290" y="660" width="150" height="60" fill="#455A64" stroke="#263238" stroke-width="1" rx="5"/>
+  <text x="365" y="680" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">Music API</text>
+  <text x="365" y="695" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">音乐服务API</text>
+  <text x="365" y="710" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">vkeys.cn</text>
+  
+  <!-- 天气API -->
+  <rect x="460" y="660" width="150" height="60" fill="#455A64" stroke="#263238" stroke-width="1" rx="5"/>
+  <text x="535" y="680" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">Weather API</text>
+  <text x="535" y="695" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">天气服务API</text>
+  <text x="535" y="710" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">qweather.com</text>
+  
+  <!-- 新闻API -->
+  <rect x="630" y="660" width="150" height="60" fill="#455A64" stroke="#263238" stroke-width="1" rx="5"/>
+  <text x="705" y="680" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">News API</text>
+  <text x="705" y="695" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">新闻服务API</text>
+  <text x="705" y="710" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">Web Scraping</text>
+  
+  <!-- 数据流箭头 -->
+  <!-- 用户到核心服务 -->
+  <path d="M 500 140 L 500 170" stroke="#333" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+  
+  <!-- 核心服务到工具层 -->
+  <path d="M 500 290 L 500 320" stroke="#333" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+  
+  <!-- 工具层到基础设施 -->
+  <path d="M 500 440 L 500 470" stroke="#333" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+  
+  <!-- 基础设施到外部服务 -->
+  <path d="M 500 590 L 500 620" stroke="#333" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+  
+  <!-- 箭头标记定义 -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333"/>
+    </marker>
+  </defs>
+  
+  <!-- 技术标签 -->
+  <rect x="20" y="760" width="960" height="30" fill="#f8f9fa" stroke="#dee2e6" stroke-width="1" rx="5"/>
+  <text x="30" y="778" font-family="Arial, sans-serif" font-size="12" fill="#666">核心技术：Python + LangChain + LangGraph + MCP Protocol + Ollama + SQLAlchemy + PaddleSpeech</text>
+</svg>
