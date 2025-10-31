@@ -136,7 +136,7 @@ class RobotBrainService:
         logger.info(f'ask: {message}')
 
         try:
-            has_regular_answer = False
+            has_regular_answer, has_audio = False, False
             for stream_mode, chunk in self.agent.stream({"messages": message}, stream_mode=["updates", "custom"]):
                 # logger.debug(f'stream_mode: {stream_mode}, chunk: {chunk}')
                 yield_content = None
@@ -153,6 +153,8 @@ class RobotBrainService:
                             has_regular_answer = True
                 elif stream_mode == 'custom':  # 自定义输出
                     yield_content = chunk
+                    if RobotAction.PLAY_AUDIO in yield_content:
+                        has_audio = True
 
                 if yield_content:
                     yield yield_content
@@ -164,7 +166,7 @@ class RobotBrainService:
             yield final_action
             has_regular_answer = True
 
-        if not has_regular_answer:
+        if not has_regular_answer and not has_audio:
             yield {'action_type': RobotAction.REGULAR_ANSWER, 'content': '刚刚网络出了一些问题，请您重新问一次'}
 
 
