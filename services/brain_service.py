@@ -14,6 +14,7 @@ from services.history_chat_service import history_chat
 from langgraph.types import Command  # noqa: TC002
 from langchain_core.messages.ai import AIMessage
 import json
+from langchain_anthropic.middleware import AnthropicPromptCachingMiddleware
 from common import logger
 from .robot_state import RobotAction
 from langchain.messages import SystemMessage, HumanMessage
@@ -52,7 +53,7 @@ class RobotBrainService:
         self._sp = self.__system_prompt()
         self.agent = create_agent(llm, tools, 
             system_prompt=self._sp, 
-            middleware=[BrainMiddleware()],
+            middleware=[BrainMiddleware(), AnthropicPromptCachingMiddleware(ttl="5m")],
             store=InMemoryStore(),
         )
         
@@ -136,7 +137,7 @@ class RobotBrainService:
         logger.info(f'ask: {message}')
 
         try:
-            has_regular_answer, has_audio = False, False
+            has_regular_answer, has_audio, last_answer = False, False, None
             for stream_mode, chunk in self.agent.stream({"messages": message}, stream_mode=["updates", "custom"]):
                 # logger.debug(f'stream_mode: {stream_mode}, chunk: {chunk}')
                 yield_content = None
@@ -149,6 +150,7 @@ class RobotBrainService:
                         if 'think>' in yield_content:
                             yield_content = yield_content.split('think>')[-1].strip()
                         if yield_content:
+                            last_answer = yield_content
                             yield_content = {'action_type': RobotAction.REGULAR_ANSWER, 'content': yield_content}
                             has_regular_answer = True
                 elif stream_mode == 'custom':  # 自定义输出
@@ -168,7 +170,9 @@ class RobotBrainService:
 
         if not has_regular_answer and not has_audio:
             yield {'action_type': RobotAction.REGULAR_ANSWER, 'content': '刚刚网络出了一些问题，请您重新问一次'}
-
+        
+        if last_answer:
+            history_chat.save_chat(question, last_answer)
 
     def __extract_steps_and_final(self, agent_response: Dict[str, Any]) -> Dict[str, Any]:
         messages = agent_response.get("messages", [])
