@@ -7,3 +7,4 @@ a.py
 */model_dir
 .vscode
 assets/hub
+assets/ffmpeg/*

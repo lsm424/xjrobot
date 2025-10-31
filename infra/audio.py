@@ -1,3 +1,4 @@
+import zipfile
 import os
 import time
 import queue
@@ -6,11 +7,16 @@ import requests
 import numpy as np
 import sounddevice as sd
 import scipy.io.wavfile as wav
-import io
+import io,sys
+import shutil
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+sys.path.append(project_root)
 from common import logger
 import pygame
 import subprocess
 import platform
+import tarfile
 threshold=2
 silence_duration=2
 samplerate=8000
@@ -97,6 +103,8 @@ class FlacStreamPlayer:
     在线解析 FLAC 链接，边下边播
     使用 ffmpeg 解码并播放
     """
+    linux_download_url = 'https://xget.xi-xu.me/gh/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz'
+    windows_download_url = 'https://xget.xi-xu.me/gh/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip'
     def __init__(self, buffer_size: int = 1024 * 64):
         self.buffer_size = buffer_size
         self.download_queue = queue.Queue(maxsize=200)  # 限制缓存大小
@@ -109,11 +117,48 @@ class FlacStreamPlayer:
         if system not in ('windows', 'linux'):
             raise RuntimeError(f"不支持的操作系统: {system}")
         ffmpeg_dir = os.path.join('assets', 'ffmpeg', system)
-        if not os.path.isdir(ffmpeg_dir):
-            raise RuntimeError(f"ffmpeg目录不存在: {ffmpeg_dir}")
+        if not os.path.exists(ffmpeg_dir):
+            os.makedirs(ffmpeg_dir)
+            self._download_ffmpeg(self.linux_download_url if system == 'linux' else self.windows_download_url, ffmpeg_dir)
+
         # 将ffmpeg目录添加到PATH环境变量
         os.environ['PATH'] = ffmpeg_dir + os.pathsep + os.environ.get('PATH', '')
 
+    @staticmethod
+    def _download_ffmpeg(url, ffmpeg_dir):
+        """下载并解压ffmpeg"""
+        # 下载ffmpeg
+        logger.info(f"正在下载 ffmpeg 到 {ffmpeg_dir}...")
+        resp = requests.get(url, stream=True, timeout=10)
+        resp.raise_for_status()
+        # 将下载的压缩包写入本地临时文件
+        filename = os.path.basename(url)
+        tar_path = os.path.join(ffmpeg_dir, filename)
+        with open(tar_path, 'wb') as f:
+            for chunk in resp.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+        logger.info(f"✅ 已成功下载 ffmpeg 压缩包到 {tar_path}")
+        # 解压到ffmpeg_dir目录下
+        if filename.endswith('.tar.xz'):
+            with tarfile.open(tar_path, mode='r:xz') as tar:
+                tar.extractall(path=ffmpeg_dir)
+        elif filename.endswith('.zip'):
+            with zipfile.ZipFile(tar_path, 'r') as zip_ref:
+                zip_ref.extractall(ffmpeg_dir)
+        # 解压完成后删除原压缩包
+        bin_dir = os.path.join(ffmpeg_dir, filename.split('.')[0], 'bin')
+        # 拷贝bin目录下的所有文件到ffmpeg_dir下
+        for item in os.listdir(bin_dir):
+            src = os.path.join(bin_dir, item)
+            dst = os.path.join(ffmpeg_dir, item)
+            if os.path.isfile(src):
+                os.rename(src, dst)
+        # 解压完成后删除原压缩包
+
+        shutil.rmtree(os.path.join(ffmpeg_dir, filename.split('.')[0]))
+        os.remove(tar_path)
+        logger.info(f"✅ 已成功下载并解压 ffmpeg 到 {ffmpeg_dir}")
 
     def _download_worker(self, resource_uri):
         """后台下载线程：持续下载 FLAC 数据并写入队列"""
