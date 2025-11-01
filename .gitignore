@@ -1,10 +1,11 @@
 *.log
-*.wav
 *.pyc
 *.db
+test.wav
 test.py
 a.py
 */model_dir
 .vscode
 assets/hub
-assets/ffmpeg
+assets/synth_audio_websocket.wav
+assets/ffmpeg/

@@ -9,10 +9,11 @@ class RobotState:
 
 
 class RobotAction:
-    PRE_ANSWER = 'pre_answer'
-    REGULAR_ANSWER = 'regular_answer'
-    PLAY_AUDIO = 'play_audio'
-    STOP_AUDIO = 'stop_audio'
+    PRE_ANSWER = 'pre_answer'                       # 预回复
+    REGULAR_ANSWER = 'regular_answer'               # 机器人普通回复
+    PLAY_AUDIO_IMMEDIATE = 'play_audio_immediate'   # 立即播放音频
+    PLAY_AUDIO_WHEN_FINAL = 'play_audio_when_final' # 最终动作指令播放音频
+    STOP_AUDIO = 'stop_audio'                       # 停止播放音频
 
     def __setattr__(self, name, value):
         raise AttributeError("value is read-only")

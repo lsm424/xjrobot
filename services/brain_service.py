@@ -6,7 +6,7 @@ from functools import reduce
 from langgraph.runtime import Runtime
 from langchain.agents import create_agent
 from langchain_ollama import ChatOllama
-from langchain.agents.middleware import AgentMiddleware, AgentState
+from langchain.agents.middleware import AgentMiddleware, AgentState, AgentState, ModelRequest, ModelResponse, dynamic_prompt
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from collections.abc import Awaitable, Callable
 from langchain_core.messages import AnyMessage, BaseMessage, ToolMessage  # noqa: TC002
@@ -20,26 +20,39 @@ from .robot_state import RobotAction
 from langchain.messages import SystemMessage, HumanMessage
 from queue import Queue
 from langgraph.store.memory import InMemoryStore
+import time
 
 LOOP = asyncio.new_event_loop()
 asyncio.set_event_loop(LOOP)
 
 
 class BrainMiddleware(AgentMiddleware):
-    def before_model(self, state: AgentState, runtime: Runtime) -> dict[str, Any] | None:
-        logger.info(f"About to call model with {len(state['messages'])} messages")
-        return None
+    
+    def wrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], ModelResponse],
+    ) -> ModelResponse:
+        start = time.time()
+        result = handler(request)
+        logger.info(f"调用模型，输入: {request.messages[-1].content}，输出: {result.result}，调用耗时: {round(time.time() - start, 2)}")
+        return result
 
-    def after_model(self, state: AgentState, runtime: Runtime) -> dict[str, Any] | None:
-        ai_answer = state['messages'][-1].content
-        if ai_answer:
-            logger.info(f"模型回答: {ai_answer}")
-        return None
+    # def before_model(self, state: AgentState, runtime: Runtime) -> dict[str, Any] | None:
+    #     logger.info(f"About to call model with {len(state['messages'])} messages")
+    #     return None
+
+    # def after_model(self, state: AgentState, runtime: Runtime) -> dict[str, Any] | None:
+    #     ai_answer = state['messages'][-1].content
+    #     if ai_answer:
+    #         logger.info(f"模型回答: {ai_answer}")
+    #     return None
 
     def wrap_tool_call(self,request: ToolCallRequest,handler: Callable[[ToolCallRequest], ToolMessage | Command],
     ) -> ToolMessage | Command:
+        start = time.time()
         result = handler(request)
-        logger.info(f"调用工具：{request.tool_call['name']} 参数: {request.tool_call['args']} 返回: {result.content}")
+        logger.info(f"调用工具：{request.tool_call['name']} 参数: {request.tool_call['args']} 返回: {result.content} 耗时: {round(time.time() - start, 2)}")
         return result
 
 
@@ -125,7 +138,7 @@ class RobotBrainService:
 
 
     def ask(self, question: str):
-        history_chats = history_chat.get_history()
+        history_chats = history_chat.get_history()[::-1]
         message = []
         if history_chats:
             for m in history_chats:
@@ -155,7 +168,7 @@ class RobotBrainService:
                             has_regular_answer = True
                 elif stream_mode == 'custom':  # 自定义输出
                     yield_content = chunk
-                    if RobotAction.PLAY_AUDIO in yield_content:
+                    if RobotAction.PLAY_AUDIO_IMMEDIATE in yield_content or RobotAction.PLAY_AUDIO_WHEN_FINAL in yield_content:
                         has_audio = True
 
                 if yield_content:

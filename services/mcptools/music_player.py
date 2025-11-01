@@ -80,7 +80,7 @@ class MusicPlayerTool(ToolBase):
             if song_url:
                 logger.info(f"成功获取歌曲 '{song_name}' 的播放链接")
                 try:
-                    RobotAction.action_immediate(RobotAction.PLAY_AUDIO, song_url)
+                    RobotAction.action_immediate(RobotAction.PLAY_AUDIO_IMMEDIATE, song_url)
                     return f"即将歌曲 '{song_name}' 的播放链接: {song_url}"
                 except Exception as e:
                     logger.error(f"无法播放歌曲 '{song_name}': {e}", exc_info=True)

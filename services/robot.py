@@ -44,8 +44,12 @@ class Robot:
         elif action_type == RobotAction.REGULAR_ANSWER:
             logger.info(f'机器人说: {content}')
             self.tts.input_text(content)
-        elif action_type == RobotAction.PLAY_AUDIO:
-            logger.info(f'播放音频: {content}')
+        elif action_type == RobotAction.PLAY_AUDIO_IMMEDIATE:
+            logger.info(f'立即播放音频: {content}')
+            audio_player.play(content)
+        elif action_type == RobotAction.PLAY_AUDIO_WHEN_FINAL:
+            logger.info(f'最终动作指令播放音频: {content}')
+            self.tts.wait_tts_finish()
             audio_player.play(content)
         elif action_type == RobotAction.STOP_AUDIO:
             logger.info('停止播放音频')

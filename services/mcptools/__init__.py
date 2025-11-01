@@ -4,7 +4,8 @@ from .math_tools_demo import MathTool
 from .get_weather import WeatherTool
 from .news_search import NewsSearchTool
 from .pre_reply import PreReplyTool  # 添加预回复工具导入
+from .audio_story import AudioStoryMcpTool
 
 # 注册工具
 def get_tools() -> list[ToolBase]:
-    return [MusicPlayerTool(), MathTool(), WeatherTool(), NewsSearchTool(), PreReplyTool()]  # 添加预回复工具
+    return [MusicPlayerTool(), MathTool(), WeatherTool(), NewsSearchTool(), PreReplyTool(), AudioStoryMcpTool()]  # 添加预回复工具

@@ -5,9 +5,12 @@ import scipy.io.wavfile as wav
 import io
 from common import logger
 import requests
+from common.config import cfg
+
+host=cfg.get('stt', 'self_realtime_sst_ip_port')
 
 def self_speech_to_text(wav_path):
-    url = f"http://172.21.198.58:8000/asr"
+    url = f"http://{host}/asr"
     if isinstance(wav_path, io.BytesIO):
         wav_path.seek(0)
         files = {"audio": wav_path}
