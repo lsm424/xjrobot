@@ -8,6 +8,7 @@ import urllib.parse
 from datetime import datetime
 from langchain.tools import tool
 from common import logger
+from services.mcptools.get_weather import HEADERS
 from .base import ToolBase
 from typing import Literal
 from pydantic import Field
@@ -52,10 +53,17 @@ class NewsSearchTool(ToolBase):
         'Accept-Language': 'zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2',
         'Connection': 'keep-alive'
     }
+    USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 Edg/91.0.864.59",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36",
+]
     
     # 必应搜索前缀
     BING_SEARCH_PREFIX = 'https://cn.bing.com/search?q='
-    
+    # BING_SEARCH_PREFIX = 'https://so.douyin.com/s?search_entrance=aweme&enter_method=normal_search&keyword='
     def clean_text(text):
         """清理文本，去除URL链接和Unicode符号，保留主要中文文本"""
         # 去除URL链接
@@ -68,132 +76,105 @@ class NewsSearchTool(ToolBase):
         text = re.sub(r'([,，.。!?！？;:：；""'"'"'])\1+', '\1', text)
         return text.strip()
     
+    # 百度千帆AppBuilder API Key
+    QIANFAN_API_KEY = "bce-v3/ALTAK-rTSowOKEosFuKCKBvu6Rq/8bcca13ea79cc98570ca9ea40c5e8e70a4aacc87"
+    
+    def qianfan_ai_search(self, api_key, keyword, top_k=10, time_filter="month", target_sites=None):
+        """
+        调用百度千帆AppBuilder AI搜索接口，根据关键词返回含title和content的结果列表
+        """
+        # 1. 接口基础配置
+        api_url = "https://qianfan.baidubce.com/v2/ai_search/web_search"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
+        }
+
+        # 2. 构造请求体参数
+        request_body = {
+            "messages": [{"role": "user", "content": keyword}],
+            "search_source": "baidu_search_v2",
+            "resource_type_filter": [{"type": "web", "top_k": min(top_k, 50)}],
+            "search_recency_filter": time_filter
+        }
+
+        # 3. 若指定目标站点，添加site过滤
+        if target_sites and isinstance(target_sites, list) and len(target_sites) <= 20:
+            request_body["search_filter"] = {
+                "match": {"site": target_sites}
+            }
+
+        try:
+            # 4. 发送POST请求
+            response = requests.post(
+                url=api_url,
+                headers=headers,
+                data=json.dumps(request_body),
+                timeout=15
+            )
+            response.raise_for_status()
+
+            # 5. 解析响应结果
+            response_data = response.json()
+            logger.info(f"百度千帆API响应: {response_data}")
+            references = response_data.get("references", [])
+
+            # 6. 过滤结果：仅保留title和content，排除空值
+            result_list = []
+            for ref in references:
+                title = ref.get("title", "无标题").strip()
+                content = ref.get("content", "无摘要").strip()
+                # 仅添加非空结果
+                if title != "无标题" or content != "无摘要":
+                    result_list.append({"title": title, "content": content})
+
+            return result_list
+
+        # 7. 异常处理
+        except requests.exceptions.HTTPError as e:
+            error_msg = f"HTTP请求错误：{str(e)}"
+            if response.text:
+                try:
+                    err_data = json.loads(response.text)
+                    error_msg += f"（错误码：{err_data.get('code')}，详情：{err_data.get('message')}）"
+                except:
+                    pass
+            logger.error(error_msg)
+            return []
+        except requests.exceptions.ConnectionError:
+            logger.error("错误：网络连接失败，请检查网络状态")
+            return []
+        except requests.exceptions.Timeout:
+            logger.error("错误：请求超时，请稍后重试")
+            return []
+        except Exception as e:
+            logger.error(f"未知错误：{str(e)}")
+            return []
+    
     @tool(description="【搜索特定主题新闻】根据关键词搜索相关最新新闻。当用户询问特定主题、人物或事件的新闻时使用此工具。要对返回内容进行总结，控制在100字以内。")
     def search_news_by_keyword_and_abstract(keyword: str = Field(..., description="搜索关键词")) -> str:
         """根据关键词搜索最新新闻并总结"""
         logger.info(f"搜索新闻关键词: '{keyword}'")
         
         try:
-            # 构建搜索URL
-            encoded_keyword = urllib.parse.quote(keyword)
-            search_url = f"{NewsSearchTool.BING_SEARCH_PREFIX}{encoded_keyword}"
-            logger.info(f"正在搜索 URL: {search_url}")
-            
-            # 发送请求获取搜索结果
-            response = requests.get(search_url, headers=NewsSearchTool.HEADERS, timeout=30)
-            response.raise_for_status()
-            # 解析搜索结果
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # 提取新闻结果
-            news_list = []
-            # 增加调试输出
-            logger.info(f"响应状态码: {response.status_code}")
-            logger.info(f"响应内容长度: {len(response.text)} 字符")
-            
-            # 优化选择器策略，优先使用.b_algo容器
-            # 策略1: 优先查找.b_algo容器，这是必应搜索结果的主要容器
-            result_containers = list(soup.select('div.b_algo'))  # 转换为列表以便后续操作
-            logger.info(f"主选择器找到 {len(result_containers)} 个.b_algo容器")
-            
-            # 策略2: 如果策略1找到的容器较少，补充其他可能的容器
-            # if len(result_containers) < 5:
-            additional_containers = soup.select('div.b_ans, li.b_algo')
-            for container in additional_containers:
-                if container not in result_containers:
-                    result_containers.append(container)
-            logger.info(f"补充后共找到 {len(result_containers)} 个容器")
-            
-            # 策略3: 如果仍未找到足够的容器，使用更通用的选择器
-            # if len(result_containers) < 3:
-            result_containers = list(soup.find_all(['div', 'li'], class_=re.compile(r'news|ans|algo|result', re.I)))
-            logger.info(f"备用选择器找到 {len(result_containers)} 个容器")
-            
-            # 限制最多返回10条新闻
-            seen_links = set()  # 用于去重
-            seen_titles = set()  # 用于去重标题
-            
-            for container in result_containers:
-                
-                try:
-                    # 优化标题提取逻辑
-                    # 1. 优先查找容器内的h2标签中的a链接（必应搜索结果的标准格式）
-                    h2_element = container.find('h2')
-                    if h2_element:
-                        link_element = h2_element.find('a', href=re.compile(r'^http'))
-                    else:
-                        # 2. 如果没有h2标签，查找容器内的其他a链接
-                        link_element = container.find('a', href=re.compile(r'^http'))
-                    
-                    if not link_element:
-                        continue
-                    
-                    link = link_element.get('href')
-                    if not link or link in seen_links:
-                        continue
-                    
-                    # 提取并清理标题
-                    title = link_element.get_text(strip=True)
-                    # 清理标题文本
-                    cleaned_title = NewsSearchTool.clean_text(title)
-                    
-                    if not cleaned_title or len(cleaned_title) < 5 or cleaned_title in seen_titles:
-                        continue
-                    
-                    # 获取摘要 - 优化提取逻辑
-                    abstract = ''
-                    
-                    # 方式1: 查找.b_caption类（必应搜索结果的标准摘要容器）
-                    caption_element = container.find('div', class_='b_caption')
-                    if caption_element:
-                        # 在摘要容器中查找p标签或直接获取文本
-                        p_element = caption_element.find('p')
-                        if p_element:
-                            abstract = p_element.get_text(strip=True)[:200]
-                        else:
-                            abstract = caption_element.get_text(strip=True)[:200]
-                    else:
-                        # 方式2: 查找p标签
-                        abstract_element = container.find('p')
-                        if abstract_element:
-                            abstract = abstract_element.get_text(strip=True)[:200]
-                        # 方式3: 查找特定class的div标签
-                        elif not abstract:
-                            abstract_elements = container.find_all('div', recursive=False)
-                            for div in abstract_elements:
-                                # 避免使用包含链接或脚本的div
-                                if not div.find('a') and not div.find('script'):
-                                    div_text = div.get_text(strip=True)
-                                    if len(div_text) > 20 and len(div_text) < 500:  # 合理长度的文本更可能是摘要
-                                        abstract = div_text[:200]
-                                        break
-                    
-                    # 清理摘要文本
-                    cleaned_abstract = NewsSearchTool.clean_text(abstract)
-                    
-                    # 构建新闻条目
-                    news_item = {
-                        'title': cleaned_title,
-                        'abstract': cleaned_abstract
-                    }
-                    
-                    news_list.append(news_item)
-                    seen_links.add(link)
-                    seen_titles.add(cleaned_title)
-                except Exception as e:
-                    logger.error(f"解析单个新闻项时出错：{e}")
-                    continue
+            # 使用百度千帆AppBuilder AI搜索接口
+            news_tool = NewsSearchTool()
+            search_results = news_tool.qianfan_ai_search(
+                api_key=NewsSearchTool.QIANFAN_API_KEY,
+                keyword=keyword.strip(),
+                top_k=10,  # 返回10条结果
+                time_filter="month"  # 仅搜索近30天的内容
+            )
             
             # 格式化返回结果，便于用户阅读
             formatted_news = []
-            for item in news_list:
+            for item in search_results:
                 formatted_news.append(f"·标题：{item['title']}")
-                if item['abstract']:
-                    formatted_news.append(f"摘要：{item['abstract']}")
-                # formatted_news.append("\n")
+                if item['content']:
+                    formatted_news.append(f"摘要：{item['content']}")
             
             if formatted_news:
-                return "请你根据用户问题，总结概括一下后面的新闻内容，今天日期是" + datetime.now().strftime("%Y-%m-%d") + "\n".join(formatted_news[:-1])  # 去掉最后一个分隔符
+                return "请你根据用户问题，总结概括一下后面的新闻内容，今天日期是" + datetime.now().strftime("%Y-%m-%d") + "\n" + "\n".join(formatted_news[:-1])  # 去掉最后一个分隔符
             else:
                 return "未找到相关新闻"
                 
