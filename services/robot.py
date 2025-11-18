@@ -29,8 +29,8 @@ class Robot:
         while RobotState.running:
             self.tts.wait_tts_finish()
             logger.info('请说话')
-            # user_input = self.rl_stt.start_recording()
-            user_input = input('请输入: ')
+            user_input = self.rl_stt.start_recording()
+            # user_input = input('请输入: ')
             logger.info(f'用户说: {user_input}')
             if not user_input:
                 logger.info('user_input为None，继续下一轮循环')
