@@ -1,10 +1,6 @@
 asposestorage==1.0.2
 beautifulsoup4==4.14.2
-langchain==1.0.3
-langchain_anthropic==1.0.1
-langchain_core==1.0.2
-langchain_ollama==1.0.0
-langgraph==1.0.2
+openai==1.107.3
 loguru==0.7.3
 mcp==1.16.0
 numpy==2.3.4
@@ -22,3 +18,4 @@ soundfile==0.13.1
 SQLAlchemy==1.4.31
 torch==2.8.0
 aistudio-sdk==0.2.6
+websockets==15.0.1
