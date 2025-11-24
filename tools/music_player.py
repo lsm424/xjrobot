@@ -250,7 +250,7 @@ def get_songs_by_singer(singer_name: str) -> str:
         logger.error(f"获取歌手歌曲列表时发生错误: {e}", exc_info=True)
         return f"错误：获取歌手歌曲列表时发生网络或解析错误: {e}"
 
-@tool(name="stop_music", description='用户说“停止播放音乐、停止播放”等类似的话一定调用此工具')
+@tool(name="stop_music", description='用户说“停止播放音乐、停止播放、停止音乐播放”等类似的话一定调用此工具')
 def stop_music() -> str:
     """停止播放音乐"""
     audio_player.safe_stop()

@@ -19,7 +19,7 @@ except Exception:
 
 while True:
     logger.info("\n--- 等待指令 ---")
-    logger.info("请说话... (说完后暂停 1.5 秒将自动结束录音)")
+    # logger.info("请说话... (说完后暂停 1.5 秒将自动结束录音)")
     
     # === 核心修改：调用 ASR 模块 ===
     # 这里的 host 和 port 可以根据需要修改，或者使用默认值

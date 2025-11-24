@@ -70,7 +70,7 @@ class SpeechRecognizer:
         })
         await websocket.send(message)
 
-        print(f"Listening... (Speak now, stops after {self.max_silence_seconds}s silence)")
+        print(f"正在监听 (请说话, {self.max_silence_seconds}s 静音后自动结束)")
         
         silence_start_time = None
         has_spoken = False # 确保用户至少说了一点话才开始检测静音
