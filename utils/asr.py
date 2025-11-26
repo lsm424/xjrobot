@@ -171,7 +171,8 @@ class SpeechRecognizer:
 # 导出给 main.py 调用的简单函数
 def recognize_speech(host="172.30.3.7", port=10095):
     recognizer = SpeechRecognizer(host, port)
-    return recognizer.start()
+    return recognizer
+    # return recognizer.start()
 
 if __name__ == "__main__":
     # 测试代码
