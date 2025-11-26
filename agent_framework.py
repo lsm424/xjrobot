@@ -207,9 +207,11 @@ class AgentFramework:
         # 动态生成可用Agent列表文本
         agents_desc_text = ""
         for aid, worker in self.workers.items():
+            # print(worker.tools_info)
             agents_desc_text += f"""
             - Agent ID: {aid} ({worker.name})
               描述: {worker.description}
+              内置工具: {', '.join([tool['name'] for tool in worker.tools_info])}
             """
             #内置工具: {worker.tools_info}
             
