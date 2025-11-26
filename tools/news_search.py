@@ -112,7 +112,9 @@ def qianfan_ai_search(api_key, keyword, top_k=10, time_filter="month", target_si
         logger.error(f"未知错误：{str(e)}")
         return []
     
-@tool(name="search_news_by_keyword_and_abstract", description="【搜索特定主题新闻】根据关键词搜索相关最新新闻。当用户询问特定主题、人物或事件的新闻时使用此工具。拿到结果之后需要对新闻进行精简总结，**100字以内**")
+@tool(name="search_news_by_keyword_and_abstract", description="""搜索特定主题网络资讯/新闻，根据关键词搜索相关信息。当用户询问特定主题、人物或事件的新闻时使用此工具。
+                                  输入：关键词
+                                  回复要求：回复需要自然拟人，如果成功 拿到结果之后需要对新闻进行精简总结，**100字以内**；如果失败按照报错进行解释性回复""")
 def search_news_by_keyword_and_abstract(keyword=None):
     """
     根据关键词搜索最新新闻并总结
@@ -140,7 +142,7 @@ def search_news_by_keyword_and_abstract(keyword=None):
             formatted_news.append(f"·标题：{item['title']}")
             if item['content']:
                 formatted_news.append(f"摘要：{item['content']}")
-        
+        # logger.info(f"搜索到的新闻: {formatted_news}")
         if formatted_news:
             return "\n".join(formatted_news[:10])  # 限制返回数量
         else:
@@ -150,7 +152,8 @@ def search_news_by_keyword_and_abstract(keyword=None):
         logger.error(f"搜索新闻时发生错误：{e}", exc_info=True)
         return f"错误：搜索新闻时发生网络或解析错误: {e}"
     
-@tool(name="get_paper_news", description="【获取最新新闻概览】获取最新的综合新闻列表。当用户仅想了解当前有哪些热点新闻时使用此工具。拿到结果之后需要对新闻进行精简总结，100字以内")
+@tool(name="get_paper_news", description="""获取最新综合新闻概览，获取最新的综合新闻列表。当用户仅想了解当前有哪些热点新闻时使用此工具。
+                                  回复要求：回复需要自然拟人，如果成功 拿到结果之后需要对新闻进行精简总结，**100字以内**；如果失败按照报错进行解释性回复""")
 def get_paper_news():
     """
     获取最新新闻列表

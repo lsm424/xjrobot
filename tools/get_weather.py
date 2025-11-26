@@ -129,7 +129,9 @@ def parse_weather_info(soup):
 
     return city_name, current_abstract, current_basic, temps_list
     
-@tool(name="get_weather", description="获取指定地点的天气信息，如果不提供地点则使用默认城市长沙，拿到结果之后需要进行总结才能回复，需要精简回答，减少生成时间")
+@tool(name="get_weather", description="""获取指定地点的天气信息，如果不提供地点则使用默认城市长沙
+                                  输入：地点名，例如杭州/长沙
+                                  回复要求：拿到天气结果之后需要进行总结才能回复，需要精简回答，减少生成时间""")
 def get_weather(location=None):
     """
     获取指定地点的天气信息

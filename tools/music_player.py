@@ -5,7 +5,9 @@ from logger import logger
 from tools import tool
 from utils.audio import audio_player
 
-@tool(name="search_song_then_play", description="一步完成搜索歌曲并播放的功能，根据歌曲名称搜索并直接播放，如果有指定歌手（或者根据聊天用户聊了歌手名），需要输入歌手名")
+@tool(name="search_song_then_play", description="""一步完成搜索歌曲并播放的功能，根据歌曲名称搜索并直接播放
+                                  输入：歌曲名称，例如 晴天，如果有指定歌手（或者根据聊天用户聊了歌手名），需要输入歌手名
+                                  回复要求：回复需要自然拟人，如果成功回复 正在播放xxx，请您欣赏 类似的话；如果失败按照报错进行解释性回复""")
 def search_song_then_play(song_name: str, singer_name: str = None) -> str:
     """根据歌曲名称搜索歌曲并直接播放"""
     logger.info(f"搜索并播放歌曲: '{song_name}'")
@@ -140,7 +142,9 @@ def parse_song_from_title( title: str) -> str:
     
     return song_name.strip("《》")
 
-@tool(name="lyrics_to_song_name", description="用户输入歌词内容，想要查找对应的歌曲名时使用此工具。输入歌词内容，返回匹配到的歌曲名")
+@tool(name="lyrics_to_song_name", description="""用户输入歌词内容，想要查找对应的歌曲名时使用此工具。
+                                  输入：歌词内容
+                                  回复要求：回复需要自然拟人，如果成功回复 这首歌的歌名是xxx，请您欣赏 类似的话；如果失败按照报错进行解释性回复""")
 def lyrics_to_song_name(lyrics: str) -> str:
     """
     根据歌词内容搜索歌曲名称
@@ -204,7 +208,9 @@ def lyrics_to_song_name(lyrics: str) -> str:
         logger.critical(f"lyrics_to_song_name工具中未处理的异常: {e}", exc_info=True)
         return f"服务器错误: {str(e)}"
 
-@tool(name="get_songs_by_singer", description="用歌手名字搜索其歌曲列表，根据列表结果让用户选择想听的歌曲")
+@tool(name="get_songs_by_singer", description="""根据歌手名搜索其歌曲列表，根据列表结果让用户选择想听的歌曲
+                                  输入：歌手名
+                                  回复要求：回复需要自然拟人，如果成功回复 歌手xxx的歌曲列表有...，请您选择想听的歌曲 类似的话；如果失败按照报错进行解释性回复""")
 def get_songs_by_singer(singer_name: str) -> str:
     """根据歌手ID搜索其歌曲列表并让用户选择想听的歌曲"""
     logger.info(f"获取歌手 {singer_name} 的歌曲列表")
@@ -250,7 +256,8 @@ def get_songs_by_singer(singer_name: str) -> str:
         logger.error(f"获取歌手歌曲列表时发生错误: {e}", exc_info=True)
         return f"错误：获取歌手歌曲列表时发生网络或解析错误: {e}"
 
-@tool(name="stop_music", description='用户说“停止播放音乐、停止播放、停止音乐播放”等类似的话一定调用此工具')
+@tool(name="stop_music", description="""用户说“停止播放音乐、停止播放、停止音乐播放”等类似的话一定调用此工具
+                                  回复要求：回复需要自然拟人，如果成功回复 音乐播放已停止，请您欣赏 类似的话；如果失败按照报错进行解释性回复""")
 def stop_music() -> str:
     """停止播放音乐"""
     audio_player.safe_stop()

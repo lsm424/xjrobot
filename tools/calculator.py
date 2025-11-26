@@ -1,7 +1,9 @@
 from tools import tool
 from typing import Union
 
-@tool(name="add", description="加法运算工具，计算两个数的和")
+@tool(name="add", description="""加法运算工具，计算两个数的和
+                                 输入：两个数a和b
+                                 回复要求：复述用户的问题，并给出答案""")
 def add(a: Union[int, float], b: Union[int, float]) -> Union[int, float]:
     """
     计算两个数的和
@@ -15,7 +17,9 @@ def add(a: Union[int, float], b: Union[int, float]) -> Union[int, float]:
     """
     return a + b
 
-@tool(name="subtract", description="减法运算工具，计算两个数的差")
+@tool(name="subtract", description="""减法运算工具，计算两个数的差
+                                 输入：被减数a和减数b
+                                 回复要求：复述用户的问题，并给出答案""")
 def subtract(a: Union[int, float], b: Union[int, float]) -> Union[int, float]:
     """
     计算两个数的差
@@ -29,7 +33,9 @@ def subtract(a: Union[int, float], b: Union[int, float]) -> Union[int, float]:
     """
     return a - b
 
-@tool(name="multiply", description="乘法运算工具，计算两个数的积")
+@tool(name="multiply", description="""乘法运算工具，计算两个数的积
+                                 输入：两个数a和b
+                                 回复要求：复述用户的问题，并给出答案""")
 def multiply(a: Union[int, float], b: Union[int, float]) -> Union[int, float]:
     """
     计算两个数的积
@@ -43,7 +49,9 @@ def multiply(a: Union[int, float], b: Union[int, float]) -> Union[int, float]:
     """
     return a * b
 
-@tool(name="divide", description="除法运算工具，计算两个数的商")
+@tool(name="divide", description="""除法运算工具，计算两个数的商
+                                 输入：被除数a和除数b
+                                 回复要求：复述用户的问题，并给出答案""")
 def divide(a: Union[int, float], b: Union[int, float]) -> Union[int, float]:
     """
     计算两个数的商
@@ -62,7 +70,9 @@ def divide(a: Union[int, float], b: Union[int, float]) -> Union[int, float]:
         raise ValueError("除数不能为零")
     return a / b
 
-@tool(name='complex_calculate', description='输入给定字符串数学计算式，计算数学结果')
+@tool(name='complex_calculate', description="""输入给定字符串数学计算式，计算数学结果
+                                 输入：数学计算式，例如 "2 + 3 * 4"
+                                 回复要求：复述用户的问题，并给出答案""")
 def complex_calculate(expression: str) -> Union[int, float]:
     """
     计算给定字符串数学计算式的结果
