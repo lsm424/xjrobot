@@ -13,6 +13,7 @@ try:
 except Exception:
     pass
 audio_input=asr.recognize_speech(host="172.30.3.7", port=10095)
+# recognizer = asr.SpeechRecognizer(host="172.30.3.7", port=10095)
 while True:
     logger.info("\n--- 等待指令 ---")
     

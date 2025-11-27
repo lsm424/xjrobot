@@ -3,7 +3,7 @@ import requests
 import re
 from tools import tool
 from logger import logger
-
+import datetime
 # 全局变量和常量定义
     
 # 添加请求头，模拟浏览器
@@ -144,7 +144,7 @@ def search_news_by_keyword_and_abstract(keyword=None):
                 formatted_news.append(f"摘要：{item['content']}")
         # logger.info(f"搜索到的新闻: {formatted_news}")
         if formatted_news:
-            return "\n".join(formatted_news[:10])  # 限制返回数量
+            return f"当前时间：{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n" + "\n".join(formatted_news[:10])  # 限制返回数量
         else:
             return "未找到相关新闻"
             
@@ -181,7 +181,7 @@ def get_paper_news():
                 formatted_news.append(f"{idx}. 标题：{news_item.get('title', '未知标题')}")
                 formatted_news.append("")
             
-            return "\n".join(formatted_news)
+            return f"当前时间：{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n" + "\n".join(formatted_news)
         else:
             return "未获取到新闻数据"
             

@@ -60,7 +60,7 @@ class WorkerAgent:
         执行具体的任务循环 (工具调用 -> 思考 -> 回答)
         """
         logger.info(f"[{self.name}] 开始处理任务...")
-        self.llm.messages.append({"role": "user", "content": user_query})
+        self.llm.messages.append({"role": "user", "content": '/no_think\n'+user_query})
         
         max_turns = 5
         current_turn = 0
@@ -269,6 +269,27 @@ class AgentFramework:
                         agent_id_str = parts[1].strip()
                         
                         if use_tool_str.isdigit() and agent_id_str.isdigit():
+                            use_tool = int(use_tool_str)
+                            agent_id = int(agent_id_str)
+                            
+                            prefix_signature = f"{use_tool_str}:{agent_id_str}:"
+                            content_start_idx = buffer.find(prefix_signature)
+                            
+                            if content_start_idx != -1:
+                                content_start_idx += len(prefix_signature)
+                                transition_text = buffer[content_start_idx:] 
+                                decision_made = True
+                                
+                                logger.info(f"决策: Tool={use_tool}, Agent={agent_id}")
+                                
+                                # 1. 立即启动 Worker (并行工作)
+                                worker_thread = self._dispatch_worker(agent_id, user_query, use_tool)
+                                
+                                # 2. 重置 buffer
+                                buffer = transition_text
+                        else:
+                            use_tool_str = parts[1].strip()
+                            agent_id_str = parts[2].strip()
                             use_tool = int(use_tool_str)
                             agent_id = int(agent_id_str)
                             

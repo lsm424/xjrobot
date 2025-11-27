@@ -52,6 +52,7 @@ def search_song_then_play(song_name: str, singer_name: str = None) -> str:
         logger.info(f"正在获取播放链接 URL: {get_url_api}")
 
         url_response = requests.get(get_url_api, timeout=15)
+        # logger.info(f"获取播放链接响应状态码: {url_response.status_code} {url_response.text}")
         url_response.raise_for_status()
         url_data = url_response.json()
 
@@ -257,7 +258,7 @@ def get_songs_by_singer(singer_name: str) -> str:
         return f"错误：获取歌手歌曲列表时发生网络或解析错误: {e}"
 
 @tool(name="stop_music", description="""用户说“停止播放音乐、停止播放、停止音乐播放”等类似的话一定调用此工具
-                                  回复要求：回复需要自然拟人，如果成功回复 音乐播放已停止，请您欣赏 类似的话；如果失败按照报错进行解释性回复""")
+                                  回复要求：回复需要自然拟人，如果成功回复 音乐播放已停止，您还有什么需要帮助的吗 类似的话；如果失败按照报错进行解释性回复""")
 def stop_music() -> str:
     """停止播放音乐"""
     audio_player.safe_stop()

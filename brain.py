@@ -17,15 +17,15 @@ class LLM_Ollama:
         """
         输入用户文本，返回助手回复文本，并更新上下文
         """
-        # if user_text != "":
-        #   user_text = '/no_think\n'+user_text
-        #   self.messages.append({"role": "user", "content": user_text})
+        if user_text != "":
+          user_text = '/no_think\n'+user_text
+          self.messages.append({"role": "user", "content": user_text})
         # else:
         # # user_text = user_text
-        #   user_text = '/no_think\n'+''
+        #   user_text = '/no_think请你根据前一次工具结果继续完成用户的请求\n'+''
         #   self.messages.append({"role": "assistant", "content": user_text})
-        user_text = '/no_think\n'+user_text
-        self.messages.append({"role": "user", "content": user_text})
+        # user_text = '/no_think\n'+user_text
+        # self.messages.append({"role": "user", "content": user_text})
         logger.info(f'messages 长度 ：{len(self.messages)}')
         if len(self.messages) > 20:
             # 保留第0条系统提示词，截取最近19条用户/助手对话
