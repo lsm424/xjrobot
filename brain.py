@@ -44,16 +44,8 @@ class LLM_Ollama:
             dt = datetime.now()  # 取当前时间:2024-11-19 14:34:54 350897
             logger.info(f'回复生成结束时间: {dt.strftime("%Y-%m-%d %H:%M:%S %f")}')
             # logger.info(f'回复内容: {assistant_reply}')
+            assistant_reply=assistant_reply.split('</think>')[-1].strip()
             self.messages.append({"role": "assistant", "content": assistant_reply})
-            if '</think>' in assistant_reply:
-                think_end = assistant_reply.rfind('</think>')
-            else:
-                think_end = 0
-            # print('------------1',think_end)
-            #print(complete_response)
-            #print(think_end)
-            if think_end != 0:
-                assistant_reply = assistant_reply[think_end+len('</think>'):]
             return assistant_reply
         except Exception as e:
             return f"[错误] 请求失败：{e}"

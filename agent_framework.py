@@ -94,7 +94,7 @@ class WorkerAgent:
                 result_str = str(tool_result)
                 self.llm.messages.append({
                     "role": "assistant", 
-                    "content": f"工具调用结果:\n工具: {tool_name}\n结果: {result_str}\n{tool_utput_desc}"
+                    "content": f"工具调用结果:\n工具: {tool_name}\n结果: {result_str}\n{tool_utput_desc}/no_think"
                 })
             except Exception as e:
                 logger.error(f"工具调用失败: {e}")

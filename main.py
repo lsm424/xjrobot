@@ -6,14 +6,12 @@ from utils import asr  # 导入我们修改后的 asr 模块
 
 agent = AgentFramework(config_path="config.ini")
 logger.info("=== Agent Framework 演示 ===")
-
+audio_input=asr.recognize_speech(host="172.30.3.7", port=10095)
 # 尝试播放启动音，如果文件不存在则忽略
 try:
     audio_player.play_file('./assets/system_start.wav')
 except Exception:
     pass
-audio_input=asr.recognize_speech(host="172.30.3.7", port=10095)
-# recognizer = asr.SpeechRecognizer(host="172.30.3.7", port=10095)
 while True:
     logger.info("\n--- 等待指令 ---")
     
