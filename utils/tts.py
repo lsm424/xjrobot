@@ -1,18 +1,24 @@
-import requests
-import pyaudio
-import re
+import asyncio
+import edge_tts
+import subprocess  # 替换 pyaudio 为 subprocess
 import queue
 import threading
 import time
+import re
+import shutil
 from logger import logger
+# from loguru import logger
 # 假设 text_splitter 在 utils 包下，如果在其他位置请调整引用
 from utils.text_splitter import TextSplitter
-
+# from text_splitter import TextSplitter
 class CosyTTS:
-    def __init__(self, server_ip, server_port):
-        self.server_ip = server_ip
-        self.server_port = server_port
-        self.target_sr = 22050  # 目标采样率
+    def __init__(self, voice="zh-CN-XiaoxiaoNeural"):
+        # server_ip 和 server_port 在 edge_tts 中不需要，保留以维持接口一致
+        self.voice = voice 
+        
+        # 检查 ffplay 是否可用
+        if not shutil.which("ffplay"):
+            logger.error("未找到 ffplay，请确保安装了 FFmpeg 并将其加入了系统环境变量 PATH 中。")
         
         # 文本队列：接收外部传入的完整文本
         self.text_queue = queue.Queue()
@@ -22,8 +28,8 @@ class CosyTTS:
         self.splitter = TextSplitter()
         self.is_running = False
         
-        # 播放器配置
-        self.p = pyaudio.PyAudio()
+        # 播放进程句柄
+        self.player_process = None
         
         # 启动工作线程
         self.start()
@@ -42,7 +48,7 @@ class CosyTTS:
         self.play_thread = threading.Thread(target=self._player_worker, daemon=True)
         self.play_thread.start()
         
-        logger.info("PaddleTTS 服务已启动 (后台线程运行中)")
+        logger.info("EdgeTTS 服务已启动 (使用 ffplay 播放)")
 
     def add_text(self, text: str):
         """
@@ -64,11 +70,10 @@ class CosyTTS:
                 text = self.text_queue.get()
                 if text is None: break
                 
-                # 1. 文本预处理
+                # 1. 文本预处理 (可选)
                 # text = self._preprocess_text(text)
                 
-                # 2. 内部进行文本分段 (Splitter logic)
-                # 使用传入的 TextSplitter 对长文本进行切分
+                # 2. 内部进行文本分段
                 segments = self.splitter.split_text(text)
                 
                 # 3. 逐段请求音频 (保证顺序)
@@ -76,7 +81,6 @@ class CosyTTS:
                     if not seg.strip():
                         continue
                     # 这里是阻塞的，必须等这一段的音频流全部接收并放入队列完毕
-                    # 才能处理下一段，这样保证了 audio_queue 里的数据顺序是正确的
                     self._stream_audio_to_queue(seg)
                 
                 self.text_queue.task_done()
@@ -87,55 +91,90 @@ class CosyTTS:
 
     def _stream_audio_to_queue(self, text):
         """
-        请求 TTS API 并将流式数据实时推入 audio_queue
+        使用 edge_tts 生成音频并将流式数据实时推入 audio_queue
         """
-        try:
-            url = f"http://{self.server_ip}:{self.server_port}/inference_sft"
-            payload = {
-                'tts_text': text,
-                'spk_id': '中文女'
-            }
-            
-            # stream=True 开启流式响应
-            response = requests.request("GET", url, data=payload, stream=True)
-            
-            if response.status_code != 200:
-                logger.error(f"TTS请求失败: {response.status_code}")
-                return
+        async def _gen_audio():
+            try:
+                communicate = edge_tts.Communicate(text, self.voice)
+                async for chunk in communicate.stream():
+                    if chunk["type"] == "audio":
+                        # edge_tts 返回的是 mp3 数据块，直接放入队列
+                        # 稍后由 ffplay 通过 pipe:0 自动解码播放
+                        self.audio_queue.put(chunk["data"])
+            except Exception as e:
+                logger.error(f"EdgeTTS 生成异常: {e}")
 
-            # 按块读取，一拿到 chunk 就放入播放队列
-            # 这样播放器可以立即开始播放，而不需要等整段下载完
-            for chunk in response.iter_content(chunk_size=4096):
-                if chunk:
-                    self.audio_queue.put(chunk)
-                    
+        try:
+            asyncio.run(_gen_audio())
         except Exception as e:
-            logger.error(f"TTS 请求流异常: {e}")
+            logger.error(f"运行 asyncio 异常: {e}")
 
     def _player_worker(self):
         """
-        最终消费者：消费 audio_queue -> 扬声器
+        最终消费者：消费 audio_queue -> ffplay 进程 (stdin)
+        解决了之前 PyAudio 无法直接播放 MP3 的问题
         """
-        stream = self.p.open(format=pyaudio.paInt16,
-                             channels=1,
-                             rate=self.target_sr,
-                             output=True)
+        # 启动 ffplay 子进程，从 stdin 读取数据，不显示窗口，静默日志
+        # -autoexit 在 stdin 关闭后退出，但在流式播放中我们保持 stdin 打开
+        # -nodisp 隐藏图形窗口
+        # -cache 增大缓存以减少卡顿
+        cmd = [
+            'ffplay', 
+            '-i', 'pipe:0', 
+            '-nodisp', 
+            '-loglevel', 'quiet', 
+            '-autoexit'
+        ]
         
+        try:
+            self.player_process = subprocess.Popen(
+                cmd, 
+                stdin=subprocess.PIPE, 
+                stderr=subprocess.PIPE,
+                bufsize=0 # 无缓冲写入
+            )
+        except FileNotFoundError:
+            logger.error("启动播放器失败：未找到 ffplay 命令")
+            return
+
         while self.is_running:
             try:
                 # 阻塞获取音频块
                 chunk = self.audio_queue.get()
                 if chunk is None: break
                 
-                # 播放
-                stream.write(chunk)
+                # 将 MP3 数据块写入 ffplay 的标准输入
+                if self.player_process and self.player_process.stdin:
+                    try:
+                        self.player_process.stdin.write(chunk)
+                        self.player_process.stdin.flush()
+                    except (BrokenPipeError, OSError):
+                        logger.warning("播放器管道断开，尝试重启播放器...")
+                        # 尝试重启播放器（简单的错误恢复）
+                        try:
+                            if self.player_process:
+                                self.player_process.kill()
+                            self.player_process = subprocess.Popen(
+                                cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0
+                            )
+                            self.player_process.stdin.write(chunk)
+                        except Exception as restart_err:
+                            logger.error(f"重启播放器失败: {restart_err}")
+
                 self.audio_queue.task_done()
                 
             except Exception as e:
                 logger.error(f"TTS 播放线程异常: {e}")
         
-        stream.stop_stream()
-        stream.close()
+        # 清理工作
+        if self.player_process:
+            try:
+                if self.player_process.stdin:
+                    self.player_process.stdin.close()
+                self.player_process.terminate()
+                self.player_process.wait(timeout=2)
+            except Exception:
+                pass
 
     def _preprocess_text(self, text):
         replacements = {
@@ -151,7 +190,15 @@ class CosyTTS:
 
     def stop(self):
         self.is_running = False
-        self.p.terminate()
+        # 放入 None 以解除队列阻塞
+        self.text_queue.put(None)
+        self.audio_queue.put(None)
+        
+        if self.player_process:
+            try:
+                self.player_process.terminate()
+            except:
+                pass
 
     def wait_until_done(self):
         """
@@ -162,11 +209,10 @@ class CosyTTS:
 
 if __name__ == "__main__":
     # 测试代码
-    tts = PaddleTTS(server_ip='127.0.0.1', server_port=8092)
-    tts.add_text("你好，这是第一段测试文本。")
-    tts.add_text("紧接着是第二段，应该流畅播放。")
+    tts = CosyTTS(voice="zh-CN-XiaoxiaoNeural")
+    tts.add_text("你好，现在我是使用 ffplay 直接播放 Edge TTS 生成的 MP3 流。")
+    tts.add_text("这样就解决了之前 PyAudio 产生的杂音问题，声音应该非常清晰。")
     
-    # 保持主线程运行以进行测试
     try:
         while True:
             time.sleep(1)

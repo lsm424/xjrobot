@@ -100,7 +100,7 @@ class FlacStreamPlayer:
                 self.ffmpeg_proc.wait()
                 logger.info("播放完成")
                 # 播放完成后播放提示音
-                self.play_file('./assets/music_done.wav')
+                # self.play_file('./assets/music_done.wav')
                 # done_proc = subprocess.Popen([
                 #     'ffplay', '-nodisp', '-autoexit', '-loglevel', 'quiet',
                 #     './assets/music_done.wav'

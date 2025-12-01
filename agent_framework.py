@@ -8,8 +8,8 @@ from typing import Dict, Any, List, Optional
 from brain import LLM_Ollama
 from tools import list_all_tools_simple, call_tool_by_name, expose_tools_as_service, get_tool_output_description
 from logger import logger
-from utils.tts import CosyTTS
-from utils import TextSplitter 
+# from utils.tts import CosyTTS
+from utils.test_edge_tts import CosyTTS
 
 # --- 辅助类：单个工作Agent的抽象 ---
 class WorkerAgent:
@@ -138,10 +138,9 @@ class AgentFramework:
         
         # 1. 初始化TTS
         if cfg.has_section("General"):
-            ip = cfg.get("General", "tts_ip", fallback="127.0.0.1")
-            port = cfg.getint("General", "tts_port", fallback=8092)
+            voice = cfg.get("General", "tts_voice", fallback="zh-CN-XiaoxiaoNeural")
             # 初始化即启动后台线程
-            self.tts_client = CosyTTS(server_ip=ip, server_port=port)
+            self.tts_client = CosyTTS(voice=voice)
             
         # 2. 初始化 Dispatcher
         if cfg.has_section("Dispatcher"):
