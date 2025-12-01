@@ -9,7 +9,7 @@ from brain import LLM_Ollama
 from tools import list_all_tools_simple, call_tool_by_name, expose_tools_as_service, get_tool_output_description
 from logger import logger
 # from utils.tts import CosyTTS
-from utils.test_edge_tts import CosyTTS
+from utils.tts import CosyTTS
 
 # --- 辅助类：单个工作Agent的抽象 ---
 class WorkerAgent:
