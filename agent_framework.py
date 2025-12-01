@@ -2,12 +2,14 @@ import json
 import threading
 import configparser
 from typing import Dict, Any, List, Optional
-import queue  # 记得导入
-# 假设这些模块在你的项目中已存在
+# queue 已经不需要在 framework 里显式使用了，除非用于其他目的
+# import queue 
+
 from brain import LLM_Ollama
 from tools import list_all_tools_simple, call_tool_by_name, expose_tools_as_service, get_tool_output_description
 from logger import logger
-from utils.tts import PaddleTTS
+from utils.tts import CosyTTS
+from utils import TextSplitter 
 
 # --- 辅助类：单个工作Agent的抽象 ---
 class WorkerAgent:
@@ -53,7 +55,6 @@ class WorkerAgent:
         {base_prompt}
         """
         self.llm.messages.append({"role": "system", "content": system_prompt})
-        # logger.info(f"[{self.name}] agent提示词已更新。\n{system_prompt}")
 
     def run_task(self, user_query: str, callback_func=None):
         """
@@ -103,35 +104,30 @@ class WorkerAgent:
     def _parse_json(self, content: str) -> Dict:
         try:
             # 简单的提取逻辑，适配可能存在的Markdown包裹
-            print(content)
             start = content.find('{')
             end = content.rfind('}') + 1
             if start != -1 and end != -1:
                 return json.loads(content[start:end])
-            return json.loads(content) # 尝试直接转换
+            return json.loads(content) 
         except:
-            return {"raw": content} # 返回原始内容表示非JSON
+            return {"raw": content} 
 
 # --- 主框架类 ---
 class AgentFramework:
     def __init__(self, config_path: str = None):
-        self.workers: Dict[int, WorkerAgent] = {} # 存储所有注册的Agent
+        self.workers: Dict[int, WorkerAgent] = {} 
         self.dispatcher_llm: Optional[LLM_Ollama] = None
         self.dispatcher_model_name = "qwen3:8b"
         
         # --- TTS 改造部分 ---
         self.tts_client = None
-        # 移除 tts_lock，因为 Queue 本身就是序列化的，自带锁功能
-        self.tts_queue = queue.Queue() 
+        # 注意：这里不再需要 self.tts_queue，因为逻辑已移交 test_tts 内部处理
+        
         self.system_prompt = None
         # 加载配置
         if config_path:
             self.load_config(config_path)
         logger.info(f"system_prompt: {self.dispatcher_llm.messages[0]['content']}")
-            
-        # 启动唯一的 TTS 守护线程
-        if self.tts_client:
-            threading.Thread(target=self._tts_consumer_loop, daemon=True).start()
         
 
     def load_config(self, config_path: str):
@@ -144,14 +140,14 @@ class AgentFramework:
         if cfg.has_section("General"):
             ip = cfg.get("General", "tts_ip", fallback="127.0.0.1")
             port = cfg.getint("General", "tts_port", fallback=8092)
-            self.tts_client = PaddleTTS(server_ip=ip, server_port=port)
+            # 初始化即启动后台线程
+            self.tts_client = CosyTTS(server_ip=ip, server_port=port)
             
         # 2. 初始化 Dispatcher
         if cfg.has_section("Dispatcher"):
             self.dispatcher_model_name = cfg.get("Dispatcher", "model_name", fallback="qwen3:8b")
             self.system_prompt = cfg.get("Dispatcher", "description", 
-                fallback="你是一个快速反应的对话决策中心。你的任务是直接判断用户的请求需要调用哪个agent来处理，并判断是否需要使用他们内置工具。你的回复文本需要是自然的过渡，更像人与人之间的交流。")
-            # Dispatcher 实例化在后续统一处理，这里只存配置
+                fallback="你是一个快速反应的对话决策中心...")
             
         # 3. 初始化 Workers
         for section in cfg.sections():
@@ -160,33 +156,12 @@ class AgentFramework:
                 agent_id = cfg.getint(section, "agent_id")
                 desc = cfg.get(section, "description")
                 model = cfg.get(section, "model_name")
-                # 处理工具列表字符串 "a, b, c" -> ["a", "b", "c"]
                 tools_str = cfg.get(section, "tools", fallback="")
                 tools = [t.strip() for t in tools_str.split(",") if t.strip()]
                 self.create_agent(agent_id, agent_name, desc, model, tools)
 
         # 4. 配置完成后，初始化Dispatcher Prompt
         self._init_dispatcher()
-    
-    def _tts_consumer_loop(self):
-        logger.info("TTS 后台服务线程已启动")
-        while True:
-            try:
-                text = self.tts_queue.get()
-                if text is None: break # 退出信号
-                
-                logger.info(f"TTS 正在播放: {text}")
-                try:
-                    # 尝试播放
-                    self.tts_client.tts(text)
-                except Exception as e:
-                    logger.error(f"TTS 播放失败: {e}")
-                finally:
-                    # 【关键】无论成功失败，都要告诉队列这一单干完了
-                    self.tts_queue.task_done()
-                    
-            except Exception as e:
-                logger.error(f"TTS 线程外层异常: {e}")
 
     def create_agent(self, agent_id: int, name: str, description: str, model_name: str, tools: List[str]):
         """
@@ -196,7 +171,6 @@ class AgentFramework:
         self.workers[agent_id] = worker
         logger.info(f"Agent已注册: [{agent_id}] {name}")
         logger.info(f"{name}.prompt: {worker.llm.messages[0]['content']}")
-        # 每次新增Agent，都需要刷新Dispatcher的提示词
         self._init_dispatcher()
 
     def _init_dispatcher(self):
@@ -204,16 +178,13 @@ class AgentFramework:
         self.dispatcher_llm = LLM_Ollama(model=self.dispatcher_model_name)
         self.dispatcher_llm.messages = []
         
-        # 动态生成可用Agent列表文本
         agents_desc_text = ""
         for aid, worker in self.workers.items():
-            # print(worker.tools_info)
             agents_desc_text += f"""
             - Agent ID: {aid} ({worker.name})
               描述: {worker.description}
               内置工具: {', '.join([tool['name'] for tool in worker.tools_info])}
             """
-            #内置工具: {worker.tools_info}
             
         system_prompt = f"""
         {self.system_prompt}
@@ -236,7 +207,6 @@ class AgentFramework:
         agent_id 必须在 [{','.join(map(str, self.workers.keys()))}] 中选择。
         """
         self.dispatcher_llm.messages.append({"role": "system", "content": system_prompt})
-        # logger.info(f"Dispatcher 系统提示词已更新。\n{system_prompt}")
 
     def safe_tts(self, content: str):
         """
@@ -245,8 +215,9 @@ class AgentFramework:
         if not self.tts_client or not content: 
             return
             
-        # 只需要把文本放入队列，立即返回，绝不阻塞！
-        self.tts_queue.put(content)
+        # 完全重构：直接将文本交给 TTS 客户端，内部处理分段、队列和播放
+        # 这个操作是瞬间完成的，不会阻塞
+        self.tts_client.add_text(content)
 
     def process_user_query(self, user_query: str, target_workers: List[int] = None):
         """
@@ -262,12 +233,18 @@ class AgentFramework:
         for chunk in stream:
             buffer += chunk
             if not decision_made and len(buffer) > 5:
+                # ... (保留原有的解析逻辑) ...
                 try:
                     parts = buffer.split(":")
                     if len(parts) >= 3:
                         use_tool_str = parts[0].strip()
                         agent_id_str = parts[1].strip()
-                        
+                        # 简单的鲁棒性处理
+                        if not (use_tool_str.isdigit() and agent_id_str.isdigit()):
+                             if len(parts) > 3: # 尝试移位解析
+                                use_tool_str = parts[1].strip()
+                                agent_id_str = parts[2].strip()
+
                         if use_tool_str.isdigit() and agent_id_str.isdigit():
                             use_tool = int(use_tool_str)
                             agent_id = int(agent_id_str)
@@ -281,64 +258,40 @@ class AgentFramework:
                                 decision_made = True
                                 
                                 logger.info(f"决策: Tool={use_tool}, Agent={agent_id}")
-                                
-                                # 1. 立即启动 Worker (并行工作)
                                 worker_thread = self._dispatch_worker(agent_id, user_query, use_tool)
-                                
-                                # 2. 重置 buffer
-                                buffer = transition_text
-                        else:
-                            use_tool_str = parts[1].strip()
-                            agent_id_str = parts[2].strip()
-                            use_tool = int(use_tool_str)
-                            agent_id = int(agent_id_str)
-                            
-                            prefix_signature = f"{use_tool_str}:{agent_id_str}:"
-                            content_start_idx = buffer.find(prefix_signature)
-                            
-                            if content_start_idx != -1:
-                                content_start_idx += len(prefix_signature)
-                                transition_text = buffer[content_start_idx:] 
-                                decision_made = True
-                                
-                                logger.info(f"决策: Tool={use_tool}, Agent={agent_id}")
-                                
-                                # 1. 立即启动 Worker (并行工作)
-                                worker_thread = self._dispatch_worker(agent_id, user_query, use_tool)
-                                
-                                # 2. 重置 buffer
                                 buffer = transition_text
                 except ValueError:
                     pass 
         
         final_text = buffer.strip()
         
-        # 【关键点】处理语音
-        # 直接调用 safe_tts，它现在只是往队列塞数据，瞬间返回，不阻塞，也不崩
+        # 1. 播放过渡语
         if final_text:
+            logger.info(f"主控回复: {final_text}")
             self.safe_tts(final_text)
 
-        # 【关键点】等待 Worker
-        # 此时 TTS 线程正在后台读 final_text，Worker 正在后台干活，互不干扰
+        # 2. 等待 Agent 工作完成
         if worker_thread and worker_thread.is_alive():
             logger.info("主线程等待 Worker 处理完成...")
             worker_thread.join()
             logger.info("Worker 任务结束。")
-        if self.tts_queue.unfinished_tasks > 0:
-            logger.info("等待 TTS 语音播放完毕...")
-            self.tts_queue.join()
+        
+        # 3. 可选：等待语音播放完毕 (如果业务需要在这里阻塞等待说完再接收下一个用户请求)
+        # 如果希望完全异步，可以注释掉下面这行
+        if self.tts_client:
+             self.tts_client.wait_until_done()
+             logger.info("本轮语音播放完毕。")
 
     def _dispatch_worker(self, agent_id: int, query: str, use_tool: int):
         """内部方法：根据ID调度Worker，并返回线程对象"""
         if use_tool == 0:
-            return None # 不需要Worker
+            return None 
 
         worker = self.workers.get(agent_id)
         if not worker:
             logger.error(f"未找到ID为 {agent_id} 的Agent")
             return None
 
-        # 定义线程任务
         def run():
             # Worker运行完后，通过回调调用TTS
             worker.run_task(query, callback_func=self.safe_tts)
@@ -346,4 +299,4 @@ class AgentFramework:
         t = threading.Thread(target=run)
         t.daemon = True
         t.start()
-        return t  # 【关键修改】返回线程对象给主控
+        return t
