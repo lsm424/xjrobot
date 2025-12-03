@@ -210,9 +210,9 @@ class CosyTTS:
 if __name__ == "__main__":
     # 测试代码
     tts = CosyTTS(voice="zh-CN-XiaoxiaoNeural")
-    tts.add_text("你好，现在我是使用 ffplay 直接播放 Edge TTS 生成的 MP3 流。")
-    tts.add_text("这样就解决了之前 PyAudio 产生的杂音问题，声音应该非常清晰。")
-    
+    tts.add_text("森林住着")
+    tts.add_text("一只总爱晚")
+    tts.add_text("归的狐狸，它")
     try:
         while True:
             time.sleep(1)
