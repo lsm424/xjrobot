@@ -2,6 +2,7 @@ from datetime import datetime
 from openai import OpenAI
 from logger import logger
 base_url = "http://47.108.93.204:11435/v1"
+# base_url = "http://172.21.198.58:11434/v1"
 class LLM_Ollama:
     def __init__(self, base_url=base_url, api_key="ollama", temperature=0.9, top_k=1, max_tokens=5012, model="qwen3:14b"):
         """

@@ -239,13 +239,14 @@ class AgentFramework:
                         use_tool_str = parts[0].strip()
                         agent_id_str = parts[1].strip()
                         # 简单的鲁棒性处理
+                        if use_tool_str == 'use_tool':
+                            buffer = buffer.replace(use_tool_str, '1')
+                            use_tool_str = '1'
+                        # print(use_tool_str, agent_id_str)
                         if not (use_tool_str.isdigit() and agent_id_str.isdigit()):
                              if len(parts) > 3: # 尝试移位解析
                                 use_tool_str = parts[1].strip()
                                 agent_id_str = parts[2].strip()
-                             elif len(parts) == 3:
-                                use_tool_str = 1
-                                agent_id_str = parts[1].strip()
 
                         if use_tool_str.isdigit() and agent_id_str.isdigit():
                             use_tool = int(use_tool_str)
