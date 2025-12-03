@@ -193,6 +193,10 @@ class AgentFramework:
         
         **请严格遵守以下输出格式（纯文本）：**
         输出格式严格为：use_tool:agent_id:回复文本
+        **注意：**
+        use_tool 必须为 0 或 1。0表示闲聊，1表示需要工具。
+        agent_id 必须在 [{','.join(map(str, self.workers.keys()))}] 中选择。
+        
         示例- 0:0:你好呀！很高兴为你服务。
         示例- 1:0:好的，我这就为您播放xxx的... 
         示例- 1:1:正在调用xxx查看... 
@@ -200,10 +204,6 @@ class AgentFramework:
 
         查询新闻、信息、歌曲之类的时候一定是要使用工具的
         回复文本根据实际用户问题和agent的功能，保持自然的过渡，更像人与人之间的交流，但不应该胡编乱造。
-
-        注意：
-        use_tool 必须为 0 或 1。0表示闲聊，1表示需要工具。
-        agent_id 必须在 [{','.join(map(str, self.workers.keys()))}] 中选择。
         """
         self.dispatcher_llm.messages.append({"role": "system", "content": system_prompt})
 
@@ -243,6 +243,9 @@ class AgentFramework:
                              if len(parts) > 3: # 尝试移位解析
                                 use_tool_str = parts[1].strip()
                                 agent_id_str = parts[2].strip()
+                             elif len(parts) == 3:
+                                use_tool_str = 1
+                                agent_id_str = parts[1].strip()
 
                         if use_tool_str.isdigit() and agent_id_str.isdigit():
                             use_tool = int(use_tool_str)
