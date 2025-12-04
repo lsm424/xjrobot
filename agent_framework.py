@@ -1,10 +1,10 @@
 import json
 import threading
 import configparser
-from typing import Dict, Any, List, Optional
+from typing import Dict, Union, List, Optional
 # queue 已经不需要在 framework 里显式使用了，除非用于其他目的
 # import queue 
-
+import re
 from brain import LLM_Ollama
 from tools import list_all_tools_simple, call_tool_by_name, expose_tools_as_service, get_tool_output_description
 from logger import logger
@@ -72,45 +72,75 @@ class WorkerAgent:
             
             # 尝试解析JSON
             parsed_res = self._parse_json(response)
-            
-            # 情况1：直接回答（非JSON或解析失败视为直接回答）
-            if "action" not in parsed_res:
-                final_content = response if isinstance(parsed_res, dict) else parsed_res
-                logger.info(f"[{self.name}] 最终输出: {final_content}")
-                
-                self.llm.messages.append({"role": "assistant", "content": final_content})
+            if not isinstance(parsed_res, list):
+                # 情况1：直接回答（非JSON或解析失败视为直接回答）
+                if "action" not in parsed_res:
+                    final_content = response if isinstance(parsed_res, dict) else parsed_res
+                    logger.info(f"[{self.name}] 最终输出: {final_content}")
+                    
+                    self.llm.messages.append({"role": "assistant", "content": final_content})
                 
                 if callback_func:
                     callback_func(final_content)
                 return final_content
-
-            # 情况2：调用工具
-            tool_name = parsed_res.get("name")
-            params = parsed_res.get("params", {})
-            logger.info(f"[{self.name}] 调用工具: {tool_name}")
-            
-            try:
-                tool_result = call_tool_by_name(tool_name, **params)
-                tool_utput_desc = get_tool_output_description(tool_name)
-                result_str = str(tool_result)
+            else:
+                tool_outputs = []
+                for res in parsed_res:
+                    # 情况2：调用工具
+                    # res = json.loads(res)
+                    tool_name = res.get("name")
+                    params = res.get("params", {})
+                    logger.info(f"[{self.name}] 调用工具: {tool_name}")
+                    
+                    try:
+                        tool_result = call_tool_by_name(tool_name, **params)
+                        tool_utput_desc = get_tool_output_description(tool_name)
+                        result_str = str(tool_result)
+                        this_tool_output = f"工具{tool_name}调用结果: {result_str}\n{tool_utput_desc}"
+                        tool_outputs.append(this_tool_output)
+                        
+                    except Exception as e:
+                        logger.error(f"工具调用失败: {e}")
+                        this_tool_output = f"工具{tool_name}调用失败: {str(e)}"
+                        tool_outputs.append(this_tool_output)
                 self.llm.messages.append({
-                    "role": "assistant", 
-                    "content": f"工具调用结果:\n工具: {tool_name}\n结果: {result_str}\n{tool_utput_desc}/no_think"
-                })
-            except Exception as e:
-                logger.error(f"工具调用失败: {e}")
-                self.llm.messages.append({"role": "assistant", "content": f"工具调用失败: {str(e)}"})
+                            "role": "assistant", 
+                            "content": f"{'\n'.join(tool_outputs)}/no_think"
+                        })
 
-    def _parse_json(self, content: str) -> Dict:
-        try:
-            # 简单的提取逻辑，适配可能存在的Markdown包裹
-            start = content.find('{')
-            end = content.rfind('}') + 1
-            if start != -1 and end != -1:
-                return json.loads(content[start:end])
-            return json.loads(content) 
-        except:
-            return {"raw": content} 
+    # def _parse_json(self, content: str) -> Dict:
+    #     try:
+    #         # 简单的提取逻辑，适配可能存在的Markdown包裹
+    #         start = content.find('{')
+    #         end = content.rfind('}') + 1
+    #         if start != -1 and end != -1:
+    #             return json.loads(content[start:end])
+    #         return json.loads(content) 
+    #     except:
+    #         return {"raw": content} 
+    
+    def _parse_json(self, content: str) -> Union[Dict, List[Dict]]:
+        try:   
+            # 使用正则表达式匹配所有JSON对象
+            # 匹配以{开头，}结尾的JSON对象（支持嵌套）
+            pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+            matches = re.findall(pattern, content)
+            
+            json_objects = []
+            for match in matches:
+                try:
+                    json_obj = json.loads(match)
+                    json_objects.append(json_obj)
+                except:
+                    continue
+            
+            if len(json_objects) == 0:
+                return {"raw": content}
+            else:
+                return json_objects
+                
+        except Exception as e:
+            return {"raw": content, "error": str(e)}
 
 # --- 主框架类 ---
 class AgentFramework:
