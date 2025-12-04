@@ -47,6 +47,10 @@ class LLM_Ollama:
             # logger.info(f'回复内容: {assistant_reply}')
             assistant_reply=assistant_reply.split('</think>')[-1].strip()
             self.messages.append({"role": "assistant", "content": assistant_reply})
+            for i,msg in enumerate(self.messages):
+                if msg['role'] == 'assistant':
+                    if len(msg['content']) > 200 :
+                        self.messages[i]['content'] = msg['content'][:100]+'...'+msg['content'][-100:]
             return assistant_reply
         except Exception as e:
             return f"[错误] 请求失败：{e}"

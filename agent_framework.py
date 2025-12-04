@@ -96,7 +96,7 @@ class WorkerAgent:
                         tool_result = call_tool_by_name(tool_name, **params)
                         tool_utput_desc = get_tool_output_description(tool_name)
                         result_str = str(tool_result)
-                        this_tool_output = f"工具{tool_name}调用结果: {result_str}\n{tool_utput_desc}"
+                        this_tool_output = f"工具{tool_name}调用结果: {result_str}\n{tool_utput_desc.strip()}"
                         tool_outputs.append(this_tool_output)
                         
                     except Exception as e:
@@ -232,8 +232,8 @@ class AgentFramework:
         示例- 1:1:正在调用xxx查看... 
         示例- 1:2:正在...
 
-        查询新闻、信息、歌曲之类的时候一定是要使用工具的
-        回复文本根据实际用户问题和agent的功能，保持自然的过渡，更像人与人之间的交流，但不应该胡编乱造。
+        **查询新闻、信息、天气、歌曲之类的时候一定要使用工具,回复为'1:'开头**
+        回复文本根据实际用户问题和agent的功能，保持自然的过渡，更像人与人之间的交流，但不应该胡编乱造，需要使用工具时一句话即可。
         """
         self.dispatcher_llm.messages.append({"role": "system", "content": system_prompt})
 
