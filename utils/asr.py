@@ -34,7 +34,7 @@ class SpeechRecognizer:
         # 录音控制
         self.running = False
         self.final_text = ""
-        self.silence_threshold = 3000  # 静音阈值，根据麦克风灵敏度调整
+        self.silence_threshold = 1000  # 静音阈值，根据麦克风灵敏度调整
         self.websocket = None
         self.max_silence_seconds = 1.5  # 静音持续多久后停止
         threading.Thread(target=self._conn_keepalive, daemon=True).start()
@@ -115,6 +115,7 @@ class SpeechRecognizer:
                 if not is_silent:
                     has_spoken = True
                     silence_start_time = None # 重置静音计时
+                    self.final_text=''
                     # logger.info('重置静音计时')
                 else:
                     if has_spoken: # 只有说话后才开始计算静音
@@ -157,7 +158,7 @@ class SpeechRecognizer:
                         logger.info(f"Listening: {meg['text']}", end="", flush=True)
                     elif meg.get("mode") == "offline" or meg.get("is_final"):
                         self.final_text = meg['text']
-                        logger.info(f"Final Result: {self.final_text}")
+                        if not self.running:logger.info(f"Final Result: {self.final_text}")
      
                 if meg.get("is_final", False):
                     if not self.running:
