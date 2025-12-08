@@ -14,8 +14,10 @@ try:
 except Exception:
     pass
 while True:
+    if agent.tts_client:
+            agent.tts_client.wait_until_done()
+            logger.info("本轮语音播放完毕。")
     logger.info("\n--- 等待指令 ---")
-    
     user_query = audio_input.start()
     # user_query = input()
     # ============================

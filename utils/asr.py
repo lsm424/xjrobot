@@ -484,12 +484,12 @@ class SpeechRecognizer:
         self.final_text = ""
         self.silence_threshold = 1000
         self.websocket = None
-        self.max_silence_seconds = 1.5
+        self.max_silence_seconds = 5
         
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
         self.turn_detector = TurnDetector()
-        self.model_check_min_silence = 0.3 
+        self.model_check_min_silence = 1.0 
         
         # === 新增: 等待最终结果的超时时间 ===
         self.final_result_timeout = 2.0
@@ -594,7 +594,7 @@ class SpeechRecognizer:
                 if not is_silent:
                     has_spoken = True
                     silence_start_time = None 
-                    self.final_text = ''
+                    # self.final_text = ''
                 else:
                     if has_spoken:
                         now = time.time()
@@ -652,9 +652,10 @@ class SpeechRecognizer:
                 if "text" in meg:
                     if meg.get("mode") == "2pass-online":
                         # logger.info(f"Listening: {meg['text']}")
+                        # self.final_text += meg['text']
                         pass
                     elif meg.get("mode") in ["offline", "2pass-offline"] or meg.get("is_final"):
-                        self.final_text = meg['text']
+                        self.final_text += meg['text']
                         if not self.running:
                             logger.info(f"Final Result: {self.final_text}")
      

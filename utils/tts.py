@@ -24,6 +24,11 @@ class CosyTTS:
         self.text_queue = queue.Queue()
         # 音频队列：存放待播放的音频数据块 (bytes)
         self.audio_queue = queue.Queue()
+        # 控制队列：用于接收播放控制信号（如刷新、停止）
+        self.control_queue = queue.Queue()
+        
+        # 播放完成事件：用于通知 wait_until_done 方法播放已完成
+        self.playback_done_event = threading.Event()
         
         self.splitter = TextSplitter()
         self.is_running = False
@@ -126,55 +131,108 @@ class CosyTTS:
             '-autoexit'
         ]
         
-        try:
-            self.player_process = subprocess.Popen(
-                cmd, 
-                stdin=subprocess.PIPE, 
-                stderr=subprocess.PIPE,
-                bufsize=0 # 无缓冲写入
-            )
-        except FileNotFoundError:
-            logger.error("启动播放器失败：未找到 ffplay 命令")
+        def _start_player():
+            """启动一个新的 ffplay 播放器进程"""
+            try:
+                self.player_process = subprocess.Popen(
+                    cmd, 
+                    stdin=subprocess.PIPE, 
+                    stderr=subprocess.PIPE,
+                    bufsize=0 # 无缓冲写入
+                )
+                return True
+            except FileNotFoundError:
+                logger.error("启动播放器失败：未找到 ffplay 命令")
+                return False
+            except Exception as e:
+                logger.error(f"启动播放器异常: {e}")
+                return False
+
+        # 初始启动播放器
+        if not _start_player():
             return
 
-        while self.is_running:
-            try:
-                # 阻塞获取音频块
-                chunk = self.audio_queue.get()
-                if chunk is None: break
-                
-                # 将 MP3 数据块写入 ffplay 的标准输入
-                if self.player_process and self.player_process.stdin:
+        try:
+            while self.is_running:
+                try:
+                    # 非阻塞获取音频块（超时100ms）
+                    chunk = None
                     try:
-                        self.player_process.stdin.write(chunk)
-                        self.player_process.stdin.flush()
-                    except (BrokenPipeError, OSError):
-                        logger.warning("播放器管道断开，尝试重启播放器...")
-                        # 尝试重启播放器（简单的错误恢复）
-                        try:
-                            if self.player_process:
-                                self.player_process.kill()
-                            self.player_process = subprocess.Popen(
-                                cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0
-                            )
-                            self.player_process.stdin.write(chunk)
-                        except Exception as restart_err:
-                            logger.error(f"重启播放器失败: {restart_err}")
+                        chunk = self.audio_queue.get(timeout=0.1)
+                        if chunk is None: break
+                    except queue.Empty:
+                        # 音频队列空，检查控制队列
+                        pass
 
-                self.audio_queue.task_done()
-                
-            except Exception as e:
-                logger.error(f"TTS 播放线程异常: {e}")
-        
-        # 清理工作
-        if self.player_process:
-            try:
-                if self.player_process.stdin:
-                    self.player_process.stdin.close()
-                self.player_process.terminate()
-                self.player_process.wait(timeout=2)
-            except Exception:
-                pass
+                    # 检查控制队列（非阻塞）
+                    control_cmd = None
+                    try:
+                        control_cmd = self.control_queue.get_nowait()
+                    except queue.Empty:
+                        pass
+
+                    # 处理音频数据
+                    if chunk:
+                        # 将 MP3 数据块写入 ffplay 的标准输入
+                        if self.player_process and self.player_process.stdin:
+                            try:
+                                self.player_process.stdin.write(chunk)
+                                self.player_process.stdin.flush()
+                            except (BrokenPipeError, OSError):
+                                logger.warning("播放器管道断开，尝试重启播放器...")
+                                # 尝试重启播放器
+                                if self.player_process:
+                                    self.player_process.kill()
+                                if _start_player():
+                                    self.player_process.stdin.write(chunk)
+                                    self.player_process.stdin.flush()
+                        self.audio_queue.task_done()
+                    
+                    # 处理控制命令
+                    if control_cmd == "flush":
+                        logger.info("收到播放刷新命令，等待当前音频播放完成...")
+                        # 关闭 stdin，让 ffplay 播放完缓冲的音频后自动退出
+                        if self.player_process and self.player_process.stdin:
+                            try:
+                                self.player_process.stdin.close()
+                            except Exception as e:
+                                logger.error(f"关闭播放器 stdin 失败: {e}")
+                        
+                        # 等待播放器进程退出
+                        try:
+                            self.player_process.wait(timeout=5)
+                            logger.info("当前音频播放完成")
+                            # 触发播放完成事件
+                            self.playback_done_event.set()
+                            # 重置事件，为下次使用做准备
+                            self.playback_done_event.clear()
+                        except subprocess.TimeoutExpired:
+                            logger.warning("播放器超时未退出，强制终止")
+                            self.player_process.kill()
+                        
+                        # 重新启动播放器，准备下一次播放
+                        _start_player()
+                    
+                    # 检查播放器进程是否意外退出
+                    if self.player_process and self.player_process.poll() is not None:
+                        logger.warning("播放器进程意外退出，重新启动")
+                        _start_player()
+                    
+                except Exception as e:
+                    logger.error(f"TTS 播放线程异常: {e}")
+        finally:
+            # 清理工作
+            if self.player_process:
+                try:
+                    if self.player_process.stdin:
+                        self.player_process.stdin.close()
+                    self.player_process.terminate()
+                    self.player_process.wait(timeout=2)
+                except Exception:
+                    pass
+            
+            # 确保播放完成事件被触发
+            self.playback_done_event.set()
 
     def _preprocess_text(self, text):
         replacements = {
@@ -203,9 +261,25 @@ class CosyTTS:
     def wait_until_done(self):
         """
         可选：阻塞等待所有文本和音频播放完毕
+        确保最后一句语音播放完毕
         """
+        # 1. 等待文本处理完成（所有文本都已转换为音频块）
+        logger.info("等待文本处理完成...")
         self.text_queue.join()
+        
+        # 2. 等待所有音频块都被发送到播放器
+        logger.info("等待音频数据发送完成...")
         self.audio_queue.join()
+        
+        # 3. 发送刷新命令，让播放器播放完剩余音频后通知我们
+        logger.info("发送播放刷新命令...")
+        self.control_queue.put("flush")
+        
+        # 4. 等待播放完成事件（最长等待10秒）
+        logger.info("等待最后一段音频播放完成...")
+        self.playback_done_event.wait(timeout=10)
+        
+        logger.info("所有音频播放完毕")
 
 if __name__ == "__main__":
     # 测试代码
@@ -213,8 +287,8 @@ if __name__ == "__main__":
     tts.add_text("森林住着")
     tts.add_text("一只总爱晚")
     tts.add_text("归的狐狸，它")
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        tts.stop()
+    
+    logger.info("等待所有语音播放完毕...")
+    tts.wait_until_done()
+    logger.info("测试完成，退出程序")
+    tts.stop()

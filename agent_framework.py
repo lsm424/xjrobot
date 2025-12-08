@@ -302,7 +302,7 @@ class AgentFramework:
                                 final_text = transition_text
                 except ValueError:
                     pass 
-        
+        self.safe_tts(buffer)
         final_text = final_text.strip()
         
         # 1. 播放过渡语
