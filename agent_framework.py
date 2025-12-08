@@ -152,6 +152,7 @@ class AgentFramework:
         # --- TTS 改造部分 ---
         self.tts_client = None
         # 注意：这里不再需要 self.tts_queue，因为逻辑已移交 test_tts 内部处理
+        self.seg_pattern = ['。', '！', '？', '，', '；']
         
         self.system_prompt = None
         # 加载配置
@@ -232,7 +233,7 @@ class AgentFramework:
         示例- 1:1:正在调用xxx查看... 
         示例- 1:2:正在...
 
-        **查询新闻、信息、天气、歌曲之类的时候一定要使用工具,回复为'1:'开头**
+        **查询新闻、信息、天气（默认：长沙）、歌曲之类的时候一定要使用工具,回复为'1:'开头**
         回复文本根据实际用户问题和agent的功能，保持自然的过渡，更像人与人之间的交流，但不应该胡编乱造，需要使用工具时一句话即可。
         """
         self.dispatcher_llm.messages.append({"role": "system", "content": system_prompt})
@@ -256,11 +257,16 @@ class AgentFramework:
         
         stream = self.dispatcher_llm.stream_text(user_query, self.dispatcher_model_name)
         buffer = ""
+        final_text = ""
         decision_made = False
         worker_thread = None 
         
         for chunk in stream:
             buffer += chunk
+            final_text += chunk
+            if chunk in self.seg_pattern:
+                self.safe_tts(buffer)
+                buffer = ""
             if not decision_made and len(buffer) > 5:
                 # ... (保留原有的解析逻辑) ...
                 try:
@@ -293,15 +299,16 @@ class AgentFramework:
                                 logger.info(f"决策: Tool={use_tool}, Agent={agent_id}")
                                 worker_thread = self._dispatch_worker(agent_id, user_query, use_tool)
                                 buffer = transition_text
+                                final_text = transition_text
                 except ValueError:
                     pass 
         
-        final_text = buffer.strip()
+        final_text = final_text.strip()
         
         # 1. 播放过渡语
         if final_text:
             logger.info(f"主控回复: {final_text}")
-            self.safe_tts(final_text)
+            # self.safe_tts(final_text)
 
         # 2. 等待 Agent 工作完成
         if worker_thread and worker_thread.is_alive():
