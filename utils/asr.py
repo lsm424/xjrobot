@@ -484,12 +484,12 @@ class SpeechRecognizer:
         self.final_text = ""
         self.silence_threshold = 1000
         self.websocket = None
-        self.max_silence_seconds = 5
+        self.max_silence_seconds = 1.5
         
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
         self.turn_detector = TurnDetector()
-        self.model_check_min_silence = 1.0 
+        self.model_check_min_silence = 0.5 
         
         # === 新增: 等待最终结果的超时时间 ===
         self.final_result_timeout = 2.0
@@ -581,9 +581,8 @@ class SpeechRecognizer:
                 if prediction_future is not None and prediction_future.done():
                     try:
                         is_complete, prob = prediction_future.result()
-                        
+                        logger.info(f"End of speech detected result (Smart Model: {'complete' if is_complete else 'incomplete'}, Prob: {prob:.2f}).")
                         if is_complete:
-                            logger.info(f"End of speech detected (Smart Model: {prob:.2f}).")
                             self.running = False
                             break
                     except Exception as e:

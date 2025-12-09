@@ -11,12 +11,11 @@ audio_input=asr.recognize_speech(host="172.30.3.7", port=10095)
 try:
     # audio_player.play_file('./assets/system_start.wav')
     agent.tts_client.add_text("您好，请问有什么可以帮您的吗？")
+    if agent.tts_client:
+            agent.tts_client.wait_until_done()
 except Exception:
     pass
 while True:
-    if agent.tts_client:
-            agent.tts_client.wait_until_done()
-            logger.info("本轮语音播放完毕。")
     logger.info("\n--- 等待指令 ---")
     user_query = audio_input.start()
     # user_query = input()
