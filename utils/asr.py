@@ -452,19 +452,17 @@ import json
 import pyaudio
 import struct
 import math
-import loguru
 from websockets.sync.client import connect
 from websockets.exceptions import ConnectionClosed
 import threading
 from collections import deque
 import concurrent.futures
+from logger import logger
 
 try:
     from utils.turn_detector import TurnDetector
 except ImportError:
     from turn_detector import TurnDetector
-
-logger = loguru.logger
 
 class SpeechRecognizer:
     def __init__(self, host="172.30.3.7", port=10095):
@@ -489,7 +487,7 @@ class SpeechRecognizer:
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
         self.turn_detector = TurnDetector()
-        self.model_check_min_silence = 0.5 
+        self.model_check_min_silence = 0.3 
         
         # === 新增: 等待最终结果的超时时间 ===
         self.final_result_timeout = 2.0

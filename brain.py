@@ -46,6 +46,9 @@ class LLM_Ollama:
             logger.info(f'回复生成结束时间: {dt.strftime("%Y-%m-%d %H:%M:%S %f")}')
             # logger.info(f'回复内容: {assistant_reply}')
             assistant_reply=assistant_reply.split('</think>')[-1].strip()
+            a = assistant_reply.split('\n')
+            if a[0]==a[-1]:
+                assistant_reply = a[0]
             self.messages.append({"role": "assistant", "content": assistant_reply})
             for i,msg in enumerate(self.messages):
                 if msg['role'] == 'assistant':

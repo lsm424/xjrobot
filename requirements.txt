@@ -17,3 +17,4 @@ websockets==15.0.1
 edge-tts==6.1.19
 onnxruntime==1.23.1
 transformers==4.46.3
+PyAudio==0.2.14
