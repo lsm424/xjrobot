@@ -210,15 +210,15 @@ def lyrics_to_song_name(lyrics: str) -> str:
         return f"服务器错误: {str(e)}"
 
 @tool(name="get_songs_by_singer", description="""根据歌手名搜索其歌曲列表，根据列表结果让用户选择想听的歌曲
-                                  输入：歌手名
+                                  输入：歌手名 页码（可选，默认第1页，如果用户说还有其他的歌吗？就请搜索当前页码+1页）
                                   回复要求：回复需要自然拟人，如果成功回复 "歌手xxx的歌曲列表有..." 类似的话；如果失败按照报错进行解释性回复""")
-def get_songs_by_singer(singer_name: str) -> str:
+def get_songs_by_singer(singer_name: str, page: int = 1) -> str:
     """根据歌手ID搜索其歌曲列表并让用户选择想听的歌曲"""
     logger.info(f"获取歌手 {singer_name} 的歌曲列表")
     
     try:
         # song_list_url = f"https://api.vkeys.cn/v2/music/tencent/singer/songlist?mid={singer_mid}"
-        song_list_url = f"https://api.vkeys.cn/music/tencent/search/song?keyword={singer_name}"
+        song_list_url = f"https://api.vkeys.cn/music/tencent/search/song?keyword={singer_name}&page={page}"
         logger.info(f"正在获取歌手歌曲列表 URL: {song_list_url}")
         
         song_list_response = requests.get(song_list_url, timeout=15)

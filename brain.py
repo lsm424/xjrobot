@@ -122,13 +122,15 @@ if __name__ == '__main__':
     # print(answer)
     
     # 测试流式输出方式
-    print("\n流式输出方式:")
-    for chunk in llm.stream_text("再生成一个300字的故事", "qwen3:14b"):
-        print(chunk, end='/n', flush=True)
-    print("\n")
+    # print("\n流式输出方式:")
+    # for chunk in llm.stream_text("再生成一个300字的故事", "qwen3:14b"):
+    #     print(chunk, end='/n', flush=True)
+    # print("\n")
     
     # # 测试14b模型的流式输出
     # print("\n使用14b模型的流式输出:")
     # for chunk in llm.stream_text("简单介绍一下AI", "qwen3:14b"):
     #     print(chunk, end='', flush=True)
     # print("\n")
+
+    
