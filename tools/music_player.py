@@ -145,7 +145,7 @@ def parse_song_from_title( title: str) -> str:
 
 @tool(name="lyrics_to_song_name", description="""用户输入歌词内容，想要查找对应的歌曲名时使用此工具。
                                   输入：歌词内容
-                                  回复要求：回复需要自然拟人，如果成功回复 "这首歌的歌名是xxx，请您欣赏" 类似的话；如果失败按照报错进行解释性回复""")
+                                  回复要求：回复需要自然拟人，如果成功回复 "这首歌的歌名是xxx，请问您想让我直接播放吗" 类似的话；如果失败按照报错进行解释性回复""")
 def lyrics_to_song_name(lyrics: str) -> str:
     """
     根据歌词内容搜索歌曲名称
@@ -195,7 +195,7 @@ def lyrics_to_song_name(lyrics: str) -> str:
             if not final_song:
                 first_title = ref_one.get('title', '')
                 logger.info(f"回退方案: 在第一个引用中未找到'《...》'。解析标题: '{first_title}'")
-                final_song = music_tool.parse_song_from_title(first_title)
+                final_song = parse_song_from_title(first_title)
     
         if not final_song:
             logger.error(f"无法从AI结果或回退方案中解析歌曲名。响应: {response_json}")
