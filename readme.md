@@ -15,7 +15,7 @@
 ## 快速开始
 
 ### 1. 安装依赖
-
+python=3.12.0
 ```bash
 pip install -r requirements.txt
 ```
