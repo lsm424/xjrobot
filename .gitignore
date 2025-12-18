@@ -9,3 +9,4 @@ a.py
 assets/hub
 assets/synth_audio_websocket.wav
 assets/ffmpeg/
+test_stream_interactive.py

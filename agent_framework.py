@@ -262,12 +262,14 @@ class AgentFramework:
         stream = self.dispatcher_llm.stream_text(user_query, self.dispatcher_model_name)
         buffer = ""
         final_text = ""
+        real_response = ""
         decision_made = False
         worker_thread = None 
         
         for chunk in stream:
             buffer += chunk
             final_text += chunk
+            real_response += chunk
             if chunk in self.seg_pattern:
                 self.safe_tts(buffer)
                 buffer = ""
@@ -308,7 +310,7 @@ class AgentFramework:
                     pass 
         self.safe_tts(buffer)
         final_text = final_text.strip()
-        
+        logger.info(f"原始回复: {real_response}")
         # 1. 播放过渡语
         if final_text:
             logger.info(f"主控回复: {final_text}")
