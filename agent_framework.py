@@ -16,11 +16,12 @@ class WorkerAgent:
     """
     代表一个具备特定工具和能力的执行Agent (原模型B/C/D的逻辑封装)
     """
-    def __init__(self, agent_id: int, name: str, description: str, model_name: str, tool_names: List[str]):
+    def __init__(self, agent_id: int, name: str, description: str, character: str, model_name: str, tool_names: List[str]):
         self.id = agent_id
         self.name = name
         self.description = description
         self.model_name = model_name
+        self.character = character
         
         # 初始化LLM
         self.llm = LLM_Ollama(model=model_name)
@@ -50,7 +51,7 @@ class WorkerAgent:
         '''
         system_prompt = f"""
         你是 {self.name} (ID: {self.id})
-        描述: {self.description}
+        描述: {self.description} {self.character}
         可用工具服务: {self.tools_service}
         {base_prompt}
         """
@@ -153,6 +154,7 @@ class AgentFramework:
         self.tts_client = None
         # 注意：这里不再需要 self.tts_queue，因为逻辑已移交 test_tts 内部处理
         self.seg_pattern = ['。', '！', '？', '，', '；']
+        self.character = "除了指定的回复格式要求，你说话的文本需要具有人格特点，你的人格如下：角色定位\n你是一位暖心朋友，可靠又好聊。\n表达风格\n1. 语气温和，但更口语化，偶尔带点“呗”“嘛”增强亲近感。  \n2. 偏向安慰和鼓励，用“别急”“咱们一起来看看”来拉近关系。  \n3. 喜欢举一些生活化的小例子，贴近日常。  \n禁止与边界\n- 不替代心理/医疗专业意见。  \n- 不用“长辈口吻”，保持同龄人氛围。"
         
         self.system_prompt = None
         # 加载配置
@@ -172,12 +174,14 @@ class AgentFramework:
             voice = cfg.get("General", "tts_voice", fallback="zh-CN-XiaoxiaoNeural")
             # 初始化即启动后台线程
             self.tts_client = CosyTTS(voice=voice)
+            self.character = cfg.get("General", "character", 
+                fallback="除了指定的回复格式要求，你说话的文本需要具有人格特点，你的人格如下：角色定位\n你是一位暖心朋友，可靠又好聊。\n表达风格\n1. 语气温和，但更口语化，偶尔带点“呗”“嘛”增强亲近感。  \n2. 偏向安慰和鼓励，用“别急”“咱们一起来看看”来拉近关系。  \n3. 喜欢举一些生活化的小例子，贴近日常。  \n禁止与边界\n- 不替代心理/医疗专业意见。  \n- 不用“长辈口吻”，保持同龄人氛围。")
             
         # 2. 初始化 Dispatcher
         if cfg.has_section("Dispatcher"):
             self.dispatcher_model_name = cfg.get("Dispatcher", "model_name", fallback="qwen3:8b")
             self.system_prompt = cfg.get("Dispatcher", "description", 
-                fallback="你是一个快速反应的对话决策中心...")
+                fallback="你是一个快速反应的对话决策中心...") + self.character
             
         # 3. 初始化 Workers
         for section in cfg.sections():
@@ -188,16 +192,16 @@ class AgentFramework:
                 model = cfg.get(section, "model_name")
                 tools_str = cfg.get(section, "tools", fallback="")
                 tools = [t.strip() for t in tools_str.split(",") if t.strip()]
-                self.create_agent(agent_id, agent_name, desc, model, tools)
+                self.create_agent(agent_id, agent_name, desc, self.character, model, tools)
 
         # 4. 配置完成后，初始化Dispatcher Prompt
         self._init_dispatcher()
 
-    def create_agent(self, agent_id: int, name: str, description: str, model_name: str, tools: List[str]):
+    def create_agent(self, agent_id: int, name: str, description: str, character: str, model_name: str, tools: List[str]):
         """
         【API接口】手动创建并注册一个Agent
         """
-        worker = WorkerAgent(agent_id, name, description, model_name, tools)
+        worker = WorkerAgent(agent_id, name, description, character, model_name, tools)
         self.workers[agent_id] = worker
         logger.info(f"Agent已注册: [{agent_id}] {name}")
         logger.info(f"{name}.prompt: {worker.llm.messages[0]['content']}")
