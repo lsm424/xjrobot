@@ -15,7 +15,7 @@
 from tools import tool
 from logger import logger
 
-@tool(name="demo_tool", description="清晰描述工具功能、输入和输出要求")
+@tool(name="demo_tool", description="清晰描述工具功能、输入和输出要求", audioSyncMode=0)
 def demo_tool(param1: str, param2: int = 10) -> str:
     """简要说明实现逻辑"""
     logger.info(f"工具执行: {param1}")
@@ -37,6 +37,7 @@ def demo_tool(param1: str, param2: int = 10) -> str:
 |------|------|------|------|
 | `name` | `str` | 否 | 工具唯一标识，默认为函数名。建议使用英文蛇形命名 |
 | `description` | `str` | **是** | **核心配置项**，需包含三部分内容（见下文） |
+| `audioSyncMode` | `int` | **否** | **核心配置项**，0为默认，1表示声音与tts同步播放，2表示等待tts播放完毕再开始，此轮对话后续文本并不再转tts |
 
 ### `description` 编写模板
 

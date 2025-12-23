@@ -6,7 +6,7 @@ from typing import Dict, Union, List, Optional
 # import queue 
 import re
 from brain import LLM_Ollama
-from tools import list_all_tools_simple, call_tool_by_name, expose_tools_as_service, get_tool_output_description
+from tools import list_all_tools_simple, call_tool_by_name, expose_tools_as_service, get_tool_output_description, get_tool_audio_sync_mode
 from logger import logger
 # from utils.tts import CosyTTS
 from utils.tts import CosyTTS
@@ -57,7 +57,7 @@ class WorkerAgent:
         """
         self.llm.messages.append({"role": "system", "content": system_prompt})
 
-    def run_task(self, user_query: str, callback_func=None):
+    def run_task(self, user_query: str, callback_func=None, tts_client=None):
         """
         执行具体的任务循环 (工具调用 -> 思考 -> 回答)
         """
@@ -66,7 +66,7 @@ class WorkerAgent:
         
         max_turns = 5
         current_turn = 0
-        
+        tool_audio_sync_mode = 0
         while current_turn < max_turns:
             current_turn += 1
             response = self.llm.return_text("", self.model_name)
@@ -80,9 +80,9 @@ class WorkerAgent:
                     logger.info(f"[{self.name}] 最终输出: {final_content}")
                     
                     self.llm.messages.append({"role": "assistant", "content": final_content})
-                
-                if callback_func:
-                    callback_func(final_content)
+                if tool_audio_sync_mode!=2:
+                    if callback_func:
+                        callback_func(final_content)
                 return final_content
             else:
                 tool_outputs = []
@@ -94,6 +94,10 @@ class WorkerAgent:
                     logger.info(f"[{self.name}] 调用工具: {tool_name}")
                     
                     try:
+                        tool_audio_sync_mode = get_tool_audio_sync_mode(tool_name)
+                        if tool_audio_sync_mode==2:
+                            if tts_client:
+                                tts_client.wait_until_done()
                         tool_result = call_tool_by_name(tool_name, **params)
                         tool_utput_desc = get_tool_output_description(tool_name)
                         result_str = str(tool_result)
@@ -108,17 +112,6 @@ class WorkerAgent:
                             "role": "assistant", 
                             "content": f"{'\n'.join(tool_outputs)}/no_think"
                         })
-
-    # def _parse_json(self, content: str) -> Dict:
-    #     try:
-    #         # 简单的提取逻辑，适配可能存在的Markdown包裹
-    #         start = content.find('{')
-    #         end = content.rfind('}') + 1
-    #         if start != -1 and end != -1:
-    #             return json.loads(content[start:end])
-    #         return json.loads(content) 
-    #     except:
-    #         return {"raw": content} 
     
     def _parse_json(self, content: str) -> Union[Dict, List[Dict]]:
         try:   
@@ -273,7 +266,7 @@ class AgentFramework:
             if chunk in self.seg_pattern:
                 self.safe_tts(buffer)
                 buffer = ""
-            if not decision_made and len(buffer) > 5:
+            if not decision_made and len(buffer) > 4:
                 # ... (保留原有的解析逻辑) ...
                 try:
                     parts = buffer.split(":")
@@ -303,7 +296,7 @@ class AgentFramework:
                                 decision_made = True
                                 
                                 logger.info(f"决策: Tool={use_tool}, Agent={agent_id}")
-                                worker_thread = self._dispatch_worker(agent_id, user_query, use_tool)
+                                worker_thread = self._dispatch_worker(agent_id, user_query, use_tool, self.tts_client)
                                 buffer = transition_text
                                 final_text = transition_text
                 except ValueError:
@@ -328,7 +321,7 @@ class AgentFramework:
              self.tts_client.wait_until_done()
              logger.info("本轮语音播放完毕。")
 
-    def _dispatch_worker(self, agent_id: int, query: str, use_tool: int):
+    def _dispatch_worker(self, agent_id: int, query: str, use_tool: int, tts_client=None):
         """内部方法：根据ID调度Worker，并返回线程对象"""
         if use_tool == 0:
             return None 
@@ -340,7 +333,7 @@ class AgentFramework:
 
         def run():
             # Worker运行完后，通过回调调用TTS
-            worker.run_task(query, callback_func=self.safe_tts)
+            worker.run_task(query, callback_func=self.safe_tts, tts_client=tts_client)
 
         t = threading.Thread(target=run)
         t.daemon = True

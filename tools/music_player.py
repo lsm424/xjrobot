@@ -7,7 +7,8 @@ from utils.audio import audio_player
 
 @tool(name="search_song_then_play", description="""一步完成搜索歌曲并播放的功能，根据歌曲名称搜索并直接播放
                                   输入：歌曲名称，例如 晴天，如果有指定歌手（或者根据聊天用户聊了歌手名），需要输入歌手名
-                                  回复要求：回复需要自然拟人，如果成功回复 "正在播放xxx，请您欣赏" 类似的话；如果失败按照报错进行解释性回复""")
+                                  回复要求：回复需要自然拟人，如果成功回复 "正在播放xxx，请您欣赏" 类似的话；如果失败按照报错进行解释性回复""", 
+                                  audioSyncMode=1)
 def search_song_then_play(song_name: str, singer_name: str = None) -> str:
     """根据歌曲名称搜索歌曲并直接播放"""
     logger.info(f"搜索并播放歌曲: '{song_name}'")

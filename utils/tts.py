@@ -200,7 +200,7 @@ class CosyTTS:
                         
                         # 等待播放器进程退出
                         try:
-                            self.player_process.wait(timeout=5)
+                            self.player_process.wait()
                             logger.info("当前音频播放完成")
                             # 触发播放完成事件
                             self.playback_done_event.set()

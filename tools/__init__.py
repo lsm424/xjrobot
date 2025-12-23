@@ -185,7 +185,7 @@ class ToolRegistry:
         self._tools_simple: Dict[str, Dict[str, Any]] = {}
         self._tool_modules: Dict[str, str] = {}  # 记录工具所属模块
 
-    def register(self, func: Callable, name: Optional[str] = None, description: Optional[str] = None):
+    def register(self, func: Callable, name: Optional[str] = None, description: Optional[str] = None, audioSyncMode: Optional[int] = None):
         """
         注册一个工具函数
         """
@@ -212,7 +212,8 @@ class ToolRegistry:
             "parameters": params,
             "return_type": return_type,
             "function": func,
-            "module": module_name
+            "module": module_name,
+            "audioSyncMode": audioSyncMode if audioSyncMode is not None else 0,
         }
         tool_simple_info = {
             "name": tool_name,
@@ -336,12 +337,12 @@ class ToolRegistry:
 _tool_registry = ToolRegistry()
 
 
-def tool(name: Optional[str] = None, description: Optional[str] = None):
+def tool(name: Optional[str] = None, description: Optional[str] = None, audioSyncMode: Optional[int] = None):
     """
     工具装饰器
     """
     def decorator(func: Callable) -> Callable:
-        _tool_registry.register(func, name=name, description=description)
+        _tool_registry.register(func, name=name, description=description, audioSyncMode=audioSyncMode)
         return func
     return decorator
 
@@ -381,6 +382,17 @@ def get_tool_output_description(name: str) -> Optional[str]:
         return tool_info['description'].split("\n")[-1]
     return "请你根据工具结果进行拟人化、精简回复"
 
+def get_tool_audio_sync_mode(name: str) -> Optional[int]:
+    """
+    获取指定工具的音频同步模式
+    :param name: 工具名称
+    :return: 工具的音频同步模式或 None
+    """
+    tool_info = _tool_registry.get_tool(name)
+    if tool_info and 'audioSyncMode' in tool_info:
+        return tool_info['audioSyncMode']
+    return 0
+
 # 修改：增加 module_names 参数
 def expose_tools_as_service(module_names: Optional[List[str]] = None) -> Dict[str, Any]:
     """
@@ -398,7 +410,8 @@ __all__ = [
     'call_tool_by_name',
     'expose_tools_as_service',
     'list_all_tools_simple',
-    'get_tool_output_description'
+    'get_tool_output_description',
+    'get_tool_audio_sync_mode'
 ]
 
 if __name__ != '__main__':

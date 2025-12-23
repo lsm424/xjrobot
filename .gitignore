@@ -9,4 +9,6 @@ a.py
 assets/hub
 assets/synth_audio_websocket.wav
 assets/ffmpeg/
+assets/data/*
+assets/moka-ai/
 test_stream_interactive.py
