@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
-from sentence_transformers import SentenceTransformer
-model = SentenceTransformer('assets/moka-ai/m3e-base')
+
+from utils.embedding import Embedding_Text
+embedding_text = Embedding_Text()
+
+# from sentence_transformers import SentenceTransformer
+# model = SentenceTransformer('assets/moka-ai/m3e-base')
 
 class Action_Story:
     def __init__(self, ):
@@ -52,8 +56,8 @@ class Action_Story:
         answer_content = answer_content.replace('"','')
 
         # i.从数据库中搜索名字匹配度最高的故事
-        # answer_name_embedding = self.embedding_text.return_embedding(answer_name) # 求answer_name的embedding
-        answer_name_embedding = model.encode(answer_name)
+        answer_name_embedding = embedding_text.return_embedding(answer_name) # 求answer_name的embedding
+        # answer_name_embedding = model.encode(answer_name)
 
         #print(answer_name_embedding)
         #print(answer_name)
@@ -78,8 +82,8 @@ class Action_Story:
                     break
             return answer
         # iii.从数据库中搜索故事内容匹配度最高的故事
-        #answer_content_embedding = self.embedding_text.return_embedding(answer_content) # 求answer_content的embedding
-        answer_content_embedding = model.encode(answer_content)
+        answer_content_embedding = embedding_text.return_embedding(answer_content) # 求answer_content的embedding
+        # answer_content_embedding = model.encode(answer_content)
         max_sim = 0
         idx = 0
         for i in range(len(self.story_description_embedding_list)):
@@ -132,8 +136,7 @@ from utils.audio import audio_player
 from tools import tool
 @tool(name="story_telling", description="""本程序的功能是讲故事，根据故事名称或内容进行播讲。如客户类似表达了“我想听空城计的故事”或“我想听空城计”的意思，可使用本程序。
 输入：故事名称，故事内容。例如，故事名称：仅从对话内容中提取（不要自己设想、猜测），如“桃园三结义”；故事内容：从对话中提取，如“三个男人结为异性兄弟，并肩作战。”。注：如果从对话中提取不出故事名称或故事内容，相应填写字符串'none'。
-回复要求：如果本函数返回的结果是''，即空字符，则回复''；如果本函数返回的结果不为空，则按照本函数返回的结果要求由大模型生成回复内容""", 
-audioSyncMode=2)
+回复要求：如果本函数返回的结果是''，即空字符，则回复''；如果本函数返回的结果不为空，则按照本函数返回的结果要求由大模型生成回复内容""",audioSyncMode=2) 
 def story_telling(story_name, story_content):
     print('story_telling:',story_name, story_content)
     """本程序的功能是讲故事。如果聊天客户的要求是听故事，可使用本程序。"""

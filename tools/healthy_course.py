@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
-from sentence_transformers import SentenceTransformer
-model = SentenceTransformer('assets/moka-ai/m3e-base')
+
+from utils.embedding import Embedding_Text
+embedding_text = Embedding_Text()
+
+# from sentence_transformers import SentenceTransformer
+# model = SentenceTransformer('assets/moka-ai/m3e-base')
 
 
 class Action_Healthy:
@@ -55,8 +59,8 @@ class Action_Healthy:
         answer_content = answer_content.replace('"','')
 
         # i.从数据库中搜索名字匹配度最高的课程
-        #answer_name_embedding = self.embedding_text.return_embedding(answer_name) # 求answer_name的embedding
-        answer_name_embedding = model.encode(answer_name)
+        answer_name_embedding = embedding_text.return_embedding(answer_name) # 求answer_name的embedding
+        # answer_name_embedding = model.encode(answer_name)
         
         max_sim = 0
         idx = 0
@@ -79,7 +83,8 @@ class Action_Healthy:
                     break
             return answer
         # iii.从数据库中搜索内容匹配度最高的课程
-        answer_content_embedding = model.encode(answer_content)
+        answer_content_embedding = embedding_text.return_embedding(answer_content) # 求answer_name的embedding
+        # answer_content_embedding = model.encode(answer_content)
         max_sim = 0
         idx = 0
         for i in range(len(self.healthy_description_embedding_list)):
@@ -129,8 +134,7 @@ from utils.audio import audio_player
 from tools import tool
 @tool(name="healthy_course", description="""本程序的功能是健康课程讲座。根据课程名称或内容进行播讲。如客户类似表达了“我想听心理健康课程”或“请播放心理健康课程”的意思，可使用本程序。
 输入：课程名称，课程内容。例如，课程名称：仅从对话内容中提取，如“老年人营养早餐的搭配”；课程内容：从对话中提取，如“营养早餐应包含哪些食物，...。”。注：如果从对话中提取不出课程名称或课程内容，相应填写字符串'none'。
-回复要求：如果本函数返回的结果是''，即空字符，则回复''；如果本函数返回的结果不为空，则按照本函数返回的结果要求由大模型生成回复内容"""
-, audioSyncMode=2)
+回复要求：如果本函数返回的结果是''，即空字符，则回复''；如果本函数返回的结果不为空，则按照本函数返回的结果要求由大模型生成回复内容""",audioSyncMode=2)
 def healthy_course(healthy_name, healthy_content):
     """本程序的功能是健康课程讲座。如果聊天客户的要求是听健康课程相关内容，可使用本程序。"""
     answer = action_healthy.healthy_search(healthy_name, healthy_content)
