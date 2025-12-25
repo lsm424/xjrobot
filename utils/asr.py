@@ -480,7 +480,7 @@ class SpeechRecognizer:
 
         self.running = False
         self.final_text = ""
-        self.silence_threshold = 1000
+        self.silence_threshold = 3000
         self.websocket = None
         self.max_silence_seconds = 1.5
         
@@ -575,7 +575,7 @@ class SpeechRecognizer:
                 audio_context_buffer.extend(data)
                 
                 is_silent = self._is_silent(data)
-                
+                # logger.info(f"is_silent: {is_silent}")
                 if prediction_future is not None and prediction_future.done():
                     try:
                         is_complete, prob = prediction_future.result()
@@ -591,7 +591,7 @@ class SpeechRecognizer:
                 if not is_silent:
                     has_spoken = True
                     silence_start_time = None 
-                    # self.final_text = ''
+                    self.final_text = ''
                 else:
                     if has_spoken:
                         now = time.time()
