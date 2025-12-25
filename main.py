@@ -12,6 +12,8 @@ audio_input=asr.recognize_speech(host="47.108.93.204", port=10095)
 try:
     # audio_player.play_file('./assets/system_start.wav')
     agent.tts_client.add_text("您好，请问有什么可以帮您的吗？")
+    # 动态设置静音阈值
+    asr.set_silence_threshold(audio_input)
     if agent.tts_client:
             agent.tts_client.wait_until_done()
 except Exception:
