@@ -29,9 +29,9 @@ class LLM_Ollama:
         # user_text = '/no_think\n'+user_text
         # self.messages.append({"role": "user", "content": user_text})
         logger.info(f'messages 长度 ：{len(self.messages)}')
-        if len(self.messages) > 20:
+        if len(self.messages) > 30:
             # 保留第0条系统提示词，截取最近19条用户/助手对话
-            self.messages = [self.messages[0]] + self.messages[-19:]
+            self.messages = [self.messages[0]] + self.messages[-29:]
         logger.info(f'模型接收的输入: {self.messages[1:]}')
         try:
             dt = datetime.now()  # 取当前时间:2024-11-19 14:34:54 350897
@@ -67,9 +67,9 @@ class LLM_Ollama:
         self.messages.append({"role": "user", "content": user_text})
         logger.info(f'messages 长度 ：{len(self.messages)}')
         
-        if len(self.messages) > 20:
+        if len(self.messages) > 30:
             # 保留第0条系统提示词，截取最近19条用户/助手对话
-            self.messages = [self.messages[0]] + self.messages[-19:]
+            self.messages = [self.messages[0]] + self.messages[-29:]
         logger.info(f'模型接收的输入: {self.messages[1:]}')
         full_reply = ""
         try:

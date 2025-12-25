@@ -57,12 +57,12 @@ class WorkerAgent:
         """
         self.llm.messages.append({"role": "system", "content": system_prompt})
 
-    def run_task(self, user_query: str, callback_func=None, tts_client=None):
+    def run_task(self, callback_func=None, tts_client=None, dispatcher_msg=None):
         """
         执行具体的任务循环 (工具调用 -> 思考 -> 回答)
         """
         logger.info(f"[{self.name}] 开始处理任务...")
-        self.llm.messages.append({"role": "user", "content": '/no_think\n'+user_query})
+        # self.llm.messages.append({"role": "user", "content": '/no_think\n'+user_query})
         
         max_turns = 5
         current_turn = 0
@@ -80,6 +80,8 @@ class WorkerAgent:
                     logger.info(f"[{self.name}] 最终输出: {final_content}")
                     
                     self.llm.messages.append({"role": "assistant", "content": final_content})
+                    if dispatcher_msg:
+                        dispatcher_msg.append({"role": "agent_id="+str(self.id), "content": final_content})
                 if tool_audio_sync_mode!=2:
                     if callback_func:
                         callback_func(final_content)
@@ -296,7 +298,7 @@ class AgentFramework:
                                 decision_made = True
                                 
                                 logger.info(f"决策: Tool={use_tool}, Agent={agent_id}")
-                                worker_thread = self._dispatch_worker(agent_id, user_query, use_tool, self.tts_client)
+                                worker_thread = self._dispatch_worker(agent_id, use_tool, self.tts_client)
                                 buffer = transition_text
                                 final_text = transition_text
                 except ValueError:
@@ -321,19 +323,29 @@ class AgentFramework:
              self.tts_client.wait_until_done()
              logger.info("本轮语音播放完毕。")
 
-    def _dispatch_worker(self, agent_id: int, query: str, use_tool: int, tts_client=None):
+    def _dispatch_worker(self, agent_id: int, use_tool: int, tts_client=None):
         """内部方法：根据ID调度Worker，并返回线程对象"""
         if use_tool == 0:
             return None 
-
+        
         worker = self.workers.get(agent_id)
+        cnt = 0
+        # 取最近6条消息，若不足6条则全部取出
+        recent_msgs = self.dispatcher_llm.messages[-6:] if len(self.dispatcher_llm.messages) >= 6 else self.dispatcher_llm.messages
+        for msg in recent_msgs:
+            if msg['role'] == 'user':
+                worker.llm.messages.append(msg)
+                print(msg)
+                cnt += 1
+            if cnt>2:
+                break
         if not worker:
             logger.error(f"未找到ID为 {agent_id} 的Agent")
             return None
 
         def run():
             # Worker运行完后，通过回调调用TTS
-            worker.run_task(query, callback_func=self.safe_tts, tts_client=tts_client)
+            worker.run_task(callback_func=self.safe_tts, tts_client=tts_client, dispatcher_msg=self.dispatcher_llm.messages)
 
         t = threading.Thread(target=run)
         t.daemon = True
