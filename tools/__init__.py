@@ -184,6 +184,7 @@ class ToolRegistry:
         self._tools: Dict[str, Dict[str, Any]] = {}
         self._tools_simple: Dict[str, Dict[str, Any]] = {}
         self._tool_modules: Dict[str, str] = {}  # 记录工具所属模块
+        self.system_tts = None
 
     def register(self, func: Callable, name: Optional[str] = None, description: Optional[str] = None, audioSyncMode: Optional[int] = None):
         """
@@ -225,6 +226,12 @@ class ToolRegistry:
         self._tool_modules[tool_name] = module_name
         
         return func
+    
+    def get_system_tts(self):
+        return self.system_tts
+    
+    def set_system_tts(self, tts):
+        self.system_tts = tts
 
     def get_tool(self, name: str) -> Optional[Dict[str, Any]]:
         """
@@ -401,6 +408,12 @@ def expose_tools_as_service(module_names: Optional[List[str]] = None) -> Dict[st
     """
     return _tool_registry.expose_as_service(module_names=module_names)
 
+def get_system_tts():
+    return _tool_registry.get_system_tts()
+
+def set_system_tts(tts):
+    _tool_registry.set_system_tts(tts)
+
 __all__ = [
     'ToolRegistry',
     'tool',
@@ -411,6 +424,9 @@ __all__ = [
     'expose_tools_as_service',
     'list_all_tools_simple',
     'get_tool_output_description',
+    'get_tool_audio_sync_mode',
+    'get_system_tts',
+    'set_system_tts',
     'get_tool_audio_sync_mode'
 ]
 

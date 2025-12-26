@@ -6,7 +6,7 @@ from typing import Dict, Union, List, Optional
 # import queue 
 import re
 from brain import LLM_Ollama
-from tools import list_all_tools_simple, call_tool_by_name, expose_tools_as_service, get_tool_output_description, get_tool_audio_sync_mode
+from tools import list_all_tools_simple, call_tool_by_name, expose_tools_as_service, get_tool_output_description, get_tool_audio_sync_mode, set_system_tts
 from logger import logger
 # from utils.tts import CosyTTS
 from utils.tts import CosyTTS
@@ -67,6 +67,7 @@ class WorkerAgent:
         max_turns = 5
         current_turn = 0
         tool_audio_sync_mode = 0
+        flag=1
         while current_turn < max_turns:
             current_turn += 1
             response = self.llm.return_text("", self.model_name)
@@ -82,7 +83,7 @@ class WorkerAgent:
                     self.llm.messages.append({"role": "assistant", "content": final_content})
                     if dispatcher_msg:
                         dispatcher_msg.append({"role": "agent_id="+str(self.id), "content": final_content})
-                if tool_audio_sync_mode!=2:
+                if tool_audio_sync_mode!=2 or flag==1:
                     if callback_func:
                         callback_func(final_content)
                 return final_content
@@ -94,13 +95,16 @@ class WorkerAgent:
                     tool_name = res.get("name")
                     params = res.get("params", {})
                     logger.info(f"[{self.name}] 调用工具: {tool_name}")
-                    
                     try:
                         tool_audio_sync_mode = get_tool_audio_sync_mode(tool_name)
+                        
                         if tool_audio_sync_mode==2:
                             if tts_client:
                                 tts_client.wait_until_done()
-                        tool_result = call_tool_by_name(tool_name, **params)
+                        try:
+                            tool_result, flag = call_tool_by_name(tool_name, **params)
+                        except Exception as e:
+                            tool_result = call_tool_by_name(tool_name, **params)
                         tool_utput_desc = get_tool_output_description(tool_name)
                         result_str = str(tool_result)
                         this_tool_output = f"工具{tool_name}调用结果: {result_str}\n{tool_utput_desc.strip()}"
@@ -169,6 +173,7 @@ class AgentFramework:
             voice = cfg.get("General", "tts_voice", fallback="zh-CN-XiaoxiaoNeural")
             # 初始化即启动后台线程
             self.tts_client = CosyTTS(voice=voice)
+            set_system_tts(self.tts_client)
             self.character = cfg.get("General", "character", 
                 fallback="除了指定的回复格式要求，你说话的文本需要具有人格特点，你的人格如下：角色定位\n你是一位暖心朋友，可靠又好聊。\n表达风格\n1. 语气温和，但更口语化，偶尔带点“呗”“嘛”增强亲近感。  \n2. 偏向安慰和鼓励，用“别急”“咱们一起来看看”来拉近关系。  \n3. 喜欢举一些生活化的小例子，贴近日常。  \n禁止与边界\n- 不替代心理/医疗专业意见。  \n- 不用“长辈口吻”，保持同龄人氛围。")
             

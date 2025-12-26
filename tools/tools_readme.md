@@ -12,7 +12,7 @@
 ### 1. 最小可用示例
 
 ```python
-from tools import tool
+from tools import tool, get_system_tts
 from logger import logger
 
 @tool(name="demo_tool", description="清晰描述工具功能、输入和输出要求", audioSyncMode=0)
@@ -21,12 +21,18 @@ def demo_tool(param1: str, param2: int = 10) -> str:
     logger.info(f"工具执行: {param1}")
     try:
         result = f"处理结果: {param1 * param2}"
-        return result
+        return result, flag(可以省略)
     except Exception as e:
         logger.error(f"工具执行失败: {e}")
-        return f"错误: 工具执行失败 - {str(e)}"
+        return f"错误: 工具执行失败 - {str(e)}", flag(可以省略)
+flag:
+    0表示不播放此次工具的结果口播，1表示播放；默认不写则为1
+return 严格形式为：(result, flag)，flag可以省略
 ```
-
+可以通过get_system_tts()获取系统默认的tts引擎
+tts=get_system_tts()
+tts.add_text(sentence)
+去播放任意内容
 ---
 
 ## 三、装饰器参数规范

@@ -145,12 +145,12 @@ def story_telling(story_name, story_content):
         try:
             answer = action_story.wav_path + answer
             audio_player.play(answer)
-            return ""
+            return "", 0
         except Exception as e:
             print("无法播放")
-            return ""
+            return "播放遇到错误："+str(e), 1
     else:
-        return answer
+        return answer, 1
 
 @tool(name="stop_story", description="""在播放故事时，用户说“停止播放故事、停止播放、停止故事播放”等类似的话一定调用此工具
                                   回复要求：'' """)

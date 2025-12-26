@@ -115,6 +115,7 @@ class SpeechRecognizer:
         
         silence_start_time = None
         has_spoken = False
+        is_silent = True
         self.running = True
         self.result_event.clear()
 
@@ -127,12 +128,12 @@ class SpeechRecognizer:
         while self.websocket:
             try:
                 data = stream.read(CHUNK, exception_on_overflow=False)
-                
-                self.websocket.send(data)
+                if not is_silent and has_spoken:
+                    self.websocket.send(data)
+                # self.websocket.send(data)
                 audio_context_buffer.extend(data)
                 
-                is_silent = self._is_silent(data)
-                # logger.info(f"is_silent: {is_silent}")
+                is_silent = self._is_silent(data)               
                 if prediction_future is not None and prediction_future.done():
                     try:
                         is_complete, prob = prediction_future.result()
@@ -144,7 +145,7 @@ class SpeechRecognizer:
                         logger.error(f"Model prediction error: {e}")
                     finally:
                         prediction_future = None
-
+                # logger.info(f"is_silent: {is_silent}, has_spoken: {has_spoken}")
                 if not is_silent:
                     has_spoken = True
                     silence_start_time = None 
@@ -210,6 +211,7 @@ class SpeechRecognizer:
                         pass
                     elif meg.get("mode") in ["offline", "2pass-offline"] or meg.get("is_final"):
                         self.final_text += meg['text']
+                        # logger.info(f"Listening: {meg['text']}")
                         if not self.running:
                             logger.info(f"Final Result: {self.final_text}")
      
