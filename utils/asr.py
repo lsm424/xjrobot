@@ -120,35 +120,44 @@ class SpeechRecognizer:
         self.result_event.clear()
 
         audio_context_buffer = deque(maxlen=256000)
-        
+
         last_model_submit_time = 0
         model_check_interval = 0.3
         prediction_future = None
+        complete_count = 0  # 连续 complete 次数计数
 
         while self.websocket:
             try:
                 data = stream.read(CHUNK, exception_on_overflow=False)
                 if not is_silent and has_spoken:
                     self.websocket.send(data)
-                # self.websocket.send(data)
                 audio_context_buffer.extend(data)
                 
                 is_silent = self._is_silent(data)               
+                
                 if prediction_future is not None and prediction_future.done():
                     try:
                         is_complete, prob = prediction_future.result()
-                        logger.info(f"End of speech detected result (Smart Model: {'complete' if is_complete else 'incomplete'}, Prob: {prob:.2f}).")
+                        logger.info(f"Smart Model: {'complete' if is_complete else 'incomplete'}, Prob: {prob:.2f}, Complete Count: {complete_count}")
+                        
                         if is_complete:
-                            self.running = False
-                            break
+                            complete_count += 1
+                            if complete_count >= 2:
+                                logger.info("End of speech detected (2 consecutive complete).")
+                                self.running = False
+                                break
+                        else:
+                            complete_count = 0
+                            silence_start_time = None  # incomplete 时重置静音计时
                     except Exception as e:
                         logger.error(f"Model prediction error: {e}")
                     finally:
                         prediction_future = None
-                # logger.info(f"is_silent: {is_silent}, has_spoken: {has_spoken}")
+                
                 if not is_silent:
                     has_spoken = True
                     silence_start_time = None 
+                    complete_count = 0  # 重新开始说话，重置计数
                     self.final_text = ''
                 else:
                     if has_spoken:
