@@ -101,10 +101,11 @@ class WorkerAgent:
                         if tool_audio_sync_mode==2:
                             if tts_client:
                                 tts_client.wait_until_done()
-                        try:
-                            tool_result, flag = call_tool_by_name(tool_name, **params)
-                        except Exception as e:
-                            tool_result = call_tool_by_name(tool_name, **params)
+                        result = call_tool_by_name(tool_name, **params)
+                        if len(result)==2:
+                            tool_result, flag = result
+                        else:
+                            tool_result = result
                         tool_utput_desc = get_tool_output_description(tool_name)
                         result_str = str(tool_result)
                         this_tool_output = f"工具{tool_name}调用结果: {result_str}\n{tool_utput_desc.strip()}"
