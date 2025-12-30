@@ -86,7 +86,7 @@ class SpeechRecognizer:
         self.rms_list.append(rms)
         return rms < self.silence_threshold
     
-    def _record_microphone(self):
+    def _record_microphone(self, start=0):
         FORMAT = pyaudio.paInt16
         CHANNELS = 1
         RATE = 16000
@@ -125,6 +125,7 @@ class SpeechRecognizer:
         last_model_submit_time = 0
         model_check_interval = 0.3
         prediction_future = None
+        complete_count = 0  # 连续 complete 次数计数
 
         while self.websocket:
             try:
@@ -143,10 +144,17 @@ class SpeechRecognizer:
                 if prediction_future is not None and prediction_future.done():
                     try:
                         is_complete, prob = prediction_future.result()
-                        logger.info(f"End of speech detected result (Smart Model: {'complete' if is_complete else 'incomplete'}, Prob: {prob:.2f}).")
+                        logger.info(f"End of speech detected result (Smart Model: {'complete' if is_complete else 'incomplete'}, Prob: {prob:.2f}). "
+                                   f"Complete count: {complete_count}")
                         if is_complete:
-                            self.running = False
-                            break
+                            complete_count += 1
+                            if complete_count >= 2:
+                                logger.info("End of speech detected (2 consecutive complete).")
+                                self.running = False
+                                break
+                        else:
+                            complete_count = 0
+                            silence_start_time = None  # incomplete 时重置静音计时
                     except Exception as e:
                         logger.error(f"Model prediction error: {e}")
                     finally:
@@ -157,6 +165,7 @@ class SpeechRecognizer:
                         self.final_text = ''
                     has_spoken = True
                     silence_start_time = None 
+                    complete_count = 0  # 重新开始说话，重置计数
                     # self.final_text = ''
                 else:
                     if has_spoken:
@@ -193,7 +202,9 @@ class SpeechRecognizer:
         p.terminate()
         
         # 1. 发送 is_speaking=False 触发服务端处理剩余音频
-        logger.info("Sending final flush signal to server...")
+        logger.info(f"Sending final flush signal to server... {self.running}")
+        if start==1:
+            return
         self.websocket.send(json.dumps({"is_speaking": False}))
         # time.sleep(0.01)  
         # 2. 等待最终结果 (带超时)
@@ -208,26 +219,16 @@ class SpeechRecognizer:
                 try:
                     meg = json.loads(self.websocket.recv(timeout=1))
                 except BaseException as e:
-                    if not self.running:
-                        self.result_event.set()
                     continue
-                
                 if "text" in meg:
-                    if meg.get("mode") == "2pass-online":
-                        # logger.info(f"Listening: {meg['text']}")
+                    if meg.get("mode") in ["offline", "2pass-offline"] or meg.get("is_final"):
                         # self.final_text += meg['text']
-                        pass
-                    elif meg.get("mode") in ["offline", "2pass-offline"] or meg.get("is_final"):
-                        self.final_text += meg['text']
                         # logger.info(f"Listening: {meg['text']}")
                         if not self.running:
-                            logger.info(f"Final Result: {self.final_text}")
-                            if meg.get("is_final", False) == False:
+                            logger.info(f"Final Result: {self.final_text} {meg.get("is_final", None)}")
+                            if meg.get("is_final", None) == False:
+                                self.final_text = meg['text']
                                 self.result_event.set()
-     
-                # if meg.get("is_final", False) == False:  # 明确检查 is_final=False 表示处理完成
-                #     if not self.running:
-                #         self.result_event.set()
 
         except Exception as e:
             pass
@@ -235,20 +236,20 @@ class SpeechRecognizer:
     def start(self):
         self.final_text = ''
         self._record_microphone()
-        while True:
-            time.sleep(0.01)
-            yield self.final_text
-        # return self.final_text
+        # while True:
+        #     time.sleep(0.01)
+        #     yield self.final_text
+        return self.final_text
     
-    def get_asr_text(self):
-        cnt = 0
-        for user_query in self.start():
-            cnt+=1
-            if user_query or cnt>5:
-                break
-        return user_query
+    # def get_asr_text(self):
+    #     cnt = 0
+    #     for user_query in self.start():
+    #         cnt+=1
+    #         if user_query or cnt>10:
+    #             break
+    #     return user_query
 def set_silence_threshold(recognizer):
-    recognizer._record_microphone()
+    recognizer._record_microphone(start=1)
     recognizer.silence_threshold = max(recognizer.rms_list)+500
     logger.info(f"silence_threshold: {recognizer.silence_threshold}")
 
