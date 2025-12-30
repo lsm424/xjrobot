@@ -154,7 +154,7 @@ class SpeechRecognizer:
                                 break
                         else:
                             complete_count = 0
-                            silence_start_time = None  # incomplete 时重置静音计时
+                            # silence_start_time = None  # incomplete 时重置静音计时
                     except Exception as e:
                         logger.error(f"Model prediction error: {e}")
                     finally:
