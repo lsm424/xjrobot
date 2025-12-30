@@ -24,14 +24,15 @@ while True:
     # user_query = input()
     # ============================
 
-    if not user_query:
+    if not user_query or user_query.strip() == "":
+        agent.tts_client.add_text("我没有听清楚，麻烦您再说一次")
+        if agent.tts_client:
+            agent.tts_client.wait_until_done()
         logger.warning("未检测到语音或识别失败，请重试。")
         continue
 
     logger.info(f"识别到的内容: {user_query}")
-        
-    if user_query.strip() == "":
-        continue
+
 
     # 调用 Agent 处理
     try:
