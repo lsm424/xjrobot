@@ -20,7 +20,7 @@ except Exception:
     pass
 while True:
     logger.info("\n--- 等待指令 ---")
-    user_query = audio_input.start()
+    user_query = audio_input.get_asr_text()
     # user_query = input()
     # ============================
 

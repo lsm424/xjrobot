@@ -12,7 +12,7 @@ import threading
 from collections import deque
 import concurrent.futures
 from logger import logger
-
+# from loguru import logger
 try:
     from utils.turn_detector import TurnDetector
 except ImportError:
@@ -34,7 +34,7 @@ class SpeechRecognizer:
 
         self.running = False
         self.final_text = ""
-        self.silence_threshold = 500
+        self.silence_threshold = 100
         self.websocket = None
         self.max_silence_seconds = 1.5
         
@@ -116,6 +116,7 @@ class SpeechRecognizer:
         silence_start_time = None
         has_spoken = False
         is_silent = True
+        silent_list = [1]*10
         self.running = True
         self.result_event.clear()
 
@@ -128,12 +129,17 @@ class SpeechRecognizer:
         while self.websocket:
             try:
                 data = stream.read(CHUNK, exception_on_overflow=False)
-                if not is_silent and has_spoken:
+                # if not is_silent and has_spoken:
+                #     self.websocket.send(data)
+                # logger.info(f"is_silent: {is_silent}, has_spoken: {has_spoken}")
+                if (sum(silent_list) >= len(silent_list) / 2 or not is_silent) and has_spoken:
                     self.websocket.send(data)
-                # self.websocket.send(data)
+                    # logger.info(f"send data {silent_list}")
                 audio_context_buffer.extend(data)
                 
-                is_silent = self._is_silent(data)               
+                is_silent = self._is_silent(data)
+                silent_list.append(0) if is_silent else silent_list.append(1) 
+                silent_list = silent_list[-10:]                
                 if prediction_future is not None and prediction_future.done():
                     try:
                         is_complete, prob = prediction_future.result()
@@ -147,9 +153,11 @@ class SpeechRecognizer:
                         prediction_future = None
                 # logger.info(f"is_silent: {is_silent}, has_spoken: {has_spoken}")
                 if not is_silent:
+                    if not has_spoken:
+                        self.final_text = ''
                     has_spoken = True
                     silence_start_time = None 
-                    self.final_text = ''
+                    # self.final_text = ''
                 else:
                     if has_spoken:
                         now = time.time()
@@ -187,7 +195,7 @@ class SpeechRecognizer:
         # 1. 发送 is_speaking=False 触发服务端处理剩余音频
         logger.info("Sending final flush signal to server...")
         self.websocket.send(json.dumps({"is_speaking": False}))
-        
+        # time.sleep(0.01)  
         # 2. 等待最终结果 (带超时)
         if not self.result_event.wait(timeout=self.final_result_timeout):
             logger.warning(f"Timeout waiting for final result after {self.final_result_timeout}s")
@@ -214,10 +222,12 @@ class SpeechRecognizer:
                         # logger.info(f"Listening: {meg['text']}")
                         if not self.running:
                             logger.info(f"Final Result: {self.final_text}")
+                            if meg.get("is_final", False) == False:
+                                self.result_event.set()
      
-                if meg.get("is_final", False) == False:  # 明确检查 is_final=False 表示处理完成
-                    if not self.running:
-                        self.result_event.set()
+                # if meg.get("is_final", False) == False:  # 明确检查 is_final=False 表示处理完成
+                #     if not self.running:
+                #         self.result_event.set()
 
         except Exception as e:
             pass
@@ -225,10 +235,21 @@ class SpeechRecognizer:
     def start(self):
         self.final_text = ''
         self._record_microphone()
-        return self.final_text
+        while True:
+            time.sleep(0.01)
+            yield self.final_text
+        # return self.final_text
+    
+    def get_asr_text(self):
+        cnt = 0
+        for user_query in self.start():
+            cnt+=1
+            if user_query or cnt>5:
+                break
+        return user_query
 def set_silence_threshold(recognizer):
     recognizer._record_microphone()
-    recognizer.silence_threshold = max(recognizer.rms_list)+1000
+    recognizer.silence_threshold = max(recognizer.rms_list)+500
     logger.info(f"silence_threshold: {recognizer.silence_threshold}")
 
 def recognize_speech(host="172.30.3.7", port=10095):
