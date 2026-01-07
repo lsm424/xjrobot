@@ -13,14 +13,16 @@ try:
     # audio_player.play_file('./assets/system_start.wav')
     agent.tts_client.add_text("您好，请问有什么可以帮您的吗？")
     # 动态设置静音阈值
-    asr.set_silence_threshold(audio_input)
+    # asr.set_silence_threshold(audio_input)
     if agent.tts_client:
             agent.tts_client.wait_until_done()
 except Exception:
     pass
+audio_sync_mode = 0
 while True:
     logger.info("\n--- 等待指令 ---")
     user_query = audio_input.start()
+    asr.set_silence_threshold(audio_input, 0)
     # user_query = input()
     # ============================
 
@@ -36,6 +38,9 @@ while True:
 
     # 调用 Agent 处理
     try:
-        agent.process_user_query(user_query)
+        audio_sync_mode=agent.process_user_query(user_query)
+        logger.info(f"audio_sync_mode: {audio_sync_mode}")
+        if audio_sync_mode!=0:
+            asr.set_silence_threshold(audio_input, 1)
     except Exception as e:
         logger.error(f"处理出错: {e}")

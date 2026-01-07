@@ -86,7 +86,7 @@ class WorkerAgent:
                 if tool_audio_sync_mode!=2 or flag==1:
                     if callback_func:
                         callback_func(final_content)
-                return final_content
+                return tool_audio_sync_mode
             else:
                 tool_outputs = []
                 for res in parsed_res:
@@ -119,6 +119,7 @@ class WorkerAgent:
                             "role": "assistant", 
                             "content": f"{'\n'.join(tool_outputs)}/no_think"
                         })
+        return tool_audio_sync_mode
     
     def _parse_json(self, content: str) -> Union[Dict, List[Dict]]:
         try:   
@@ -328,6 +329,7 @@ class AgentFramework:
         if self.tts_client:
              self.tts_client.wait_until_done()
              logger.info("本轮语音播放完毕。")
+        return worker_thread._result_container[0] if worker_thread and worker_thread._result_container else 0
 
     def _dispatch_worker(self, agent_id: int, use_tool: int, tts_client=None):
         """内部方法：根据ID调度Worker，并返回线程对象"""
@@ -349,11 +351,16 @@ class AgentFramework:
             logger.error(f"未找到ID为 {agent_id} 的Agent")
             return None
 
+        result_container = []   # 用于收集子线程返回值
+
         def run():
-            # Worker运行完后，通过回调调用TTS
-            worker.run_task(callback_func=self.safe_tts, tts_client=tts_client, dispatcher_msg=self.dispatcher_llm.messages)
+            # 捕获run_task的返回值
+            ret = worker.run_task(callback_func=self.safe_tts, tts_client=tts_client, dispatcher_msg=self.dispatcher_llm.messages)
+            result_container.append(ret)
 
         t = threading.Thread(target=run)
         t.daemon = True
         t.start()
+        # 将线程对象与结果容器一并返回，方便主线程等待并取值
+        t._result_container = result_container
         return t

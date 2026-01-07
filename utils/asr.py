@@ -126,8 +126,12 @@ class SpeechRecognizer:
         model_check_interval = 0.3
         prediction_future = None
         complete_count = 0  # 连续 complete 次数计数
-
+        cnt = 0
         while self.websocket:
+            cnt += 1
+            if cnt>3:
+                if start==1:
+                    break
             try:
                 data = stream.read(CHUNK, exception_on_overflow=False)
                 # if not is_silent and has_spoken:
@@ -248,9 +252,12 @@ class SpeechRecognizer:
     #         if user_query or cnt>10:
     #             break
     #     return user_query
-def set_silence_threshold(recognizer):
-    recognizer._record_microphone(start=1)
-    recognizer.silence_threshold = max(recognizer.rms_list)+500
+def set_silence_threshold(recognizer, mode = 0):
+    if mode==0:
+        recognizer.silence_threshold = 100
+    else:
+        recognizer._record_microphone(start=1)
+        recognizer.silence_threshold = sum(recognizer.rms_list)/len(recognizer.rms_list)*0.4 + max(recognizer.rms_list)*0.6
     logger.info(f"silence_threshold: {recognizer.silence_threshold}")
 
 def recognize_speech(host="172.30.3.7", port=10095):
